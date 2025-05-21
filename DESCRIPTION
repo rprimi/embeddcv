@@ -1,0 +1,22 @@
+Package: embedd_cv
+Title: Embeddings and Cosine Similarity Analysis for Psychological Scales
+Version: 0.1.0
+Authors@R: 
+    person("Ricardo", "Primi", , "ricprimi@gmail.com", role = c("aut", "cre"))
+Description: Tools for analyzing psychological scales using embeddings and cosine similarity.
+    The package provides functions to generate embeddings from text using OpenAI's API,
+    compute cosine similarities between items and scales, and analyze the relationships
+    between items and factors using various complexity measures.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.3
+Imports: 
+    httr,
+    jsonlite,
+    text2vec,
+    dplyr,
+    purrr
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3 
