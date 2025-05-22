@@ -1,16 +1,16 @@
-# embedd_cv
+# embeddcv
 
 ## Overview
 
-`embedd_cv` is an R package designed for analyzing psychological scales using embeddings and cosine similarity. It provides tools for generating text embeddings using OpenAI's API, computing cosine similarities between items and scales, and analyzing the relationships between items and factors using various complexity measures.
+`embeddcv` is an R package designed for analyzing psychological scales using embeddings and cosine similarity. It provides tools for generating text embeddings using OpenAI's API, computing cosine similarities between items and scales, and analyzing the relationships between items and factors using various complexity measures.
 
 ## Installation
 
-You can install the development version of embedd_cv from GitHub with:
+You can install the development version of embeddcv from GitHub with:
 
 ```r
 # install.packages("devtools")
-devtools::install_github("ricprimi/embedd_cv")
+devtools::install_github("ricprimi/embeddcv")
 ```
 
 ## Main Functions
@@ -26,7 +26,7 @@ The package provides three main functions:
 Here's a basic example of how to use the package:
 
 ```r
-library(embedd_cv)
+library(embeddcv)
 
 # Generate embeddings for items and scales
 item_embeddings <- get_embeddings(

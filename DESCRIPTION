@@ -1,4 +1,4 @@
-Package: embedd_cv
+Package: embeddcv
 Title: Embeddings and Cosine Similarity Analysis for Psychological Scales
 Version: 0.1.0
 Authors@R: 
