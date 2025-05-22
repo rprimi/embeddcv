@@ -30,9 +30,22 @@
 #' @importFrom dplyr bind_cols
 #' @importFrom purrr set_names
 #' @examples
-#' # Example usage (assuming all inputs are precomputed):
+#' \dontrun{
+#' # Create sample embeddings for demonstration
+#' # In practice, these would be generated using get_embeddings()
+#' set.seed(123)
+#' item_emb <- matrix(runif(60, -1, 1), nrow = 6, ncol = 10)  # 6 items, 10 dimensions
+#' scale_emb <- matrix(runif(50, -1, 1), nrow = 5, ncol = 10)  # 5 scales, 10 dimensions
+#' 
+#' # Sample item texts and factors
+#' item_text <- c("I am outgoing", "I worry", "I like art", "I help others", "I am organized", "I think deeply")
+#' factor_itens <- c("E", "N", "O", "A", "C", "O")
+#' factor_scale <- c("Openness", "Conscientiousness", "Extraversion", "Agreeableness", "Neuroticism")
+#' 
+#' # Compute cosine similarities and complexity measures
 #' result <- cosim_itens_scales(item_emb, scale_emb, item_text, factor_itens, factor_scale)
 #' head(result)
+#' }
 #'
 #' @export
 cosim_itens_scales <- function(

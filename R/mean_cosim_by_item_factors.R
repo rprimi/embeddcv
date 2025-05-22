@@ -21,13 +21,31 @@
 #' The function is robust to missing values.
 #'
 #' @examples
-#' # Example usage:
+#' \dontrun{
+#' # Create a sample cosine similarity matrix
+#' # In practice, this would come from cosim_itens_scales()
+#' set.seed(123)
+#' n_items <- 20
+#' n_targets <- 5
+#' cosim_mat <- matrix(runif(n_items * n_targets, 0, 1), 
+#'                     nrow = n_items, ncol = n_targets)
+#' 
+#' # Sample domain structure
+#' item_factor <- sample(c("O_aes", "C_org", "E_soc", "A_trust", "N_anx"), n_items, replace = TRUE)
+#' target_factor <- c("Openness", "Conscientiousness", "Extraversion", "Agreeableness", "Neuroticism")
+#' colnames(cosim_mat) <- target_factor
+#' 
+#' # Compute mean similarities by factors
 #' result <- mean_cosim_by_item_factors(
-#'   cosim_mat = your_cosim_matrix,
-#'   item_factor = your_item_facet_vector,
-#'   target_factor = your_target_facet_vector
+#'   cosim_mat = cosim_mat,
+#'   item_factor = item_factor,
+#'   target_factor = target_factor
 #' )
+#' 
+#' # View results
 #' head(result$matches_by_row)
+#' result$matriz_corr
+#' }
 #'
 #' @export
 

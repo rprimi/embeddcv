@@ -13,8 +13,16 @@
 #'
 #' @importFrom networkD3 sankeyNetwork
 #' @examples
-#' # Example usage:
-#' # sankey_from_matrix(m = your_matrix, value = 0.4)
+#' \dontrun{
+#' # Create a simple matrix for demonstration
+#' set.seed(123)
+#' matrix_data <- matrix(runif(25, 0, 1), nrow = 5, ncol = 5)
+#' rownames(matrix_data) <- paste("Item", 1:5)
+#' colnames(matrix_data) <- paste("Scale", 1:5)
+#' 
+#' # Create sankey plot
+#' sankey_from_matrix(matrix_data, value = 0.4)
+#' }
 #'
 #' @export
 sankey_from_matrix <- function(m, value = 0.40, ...) {
