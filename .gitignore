@@ -5,3 +5,7 @@
 .DS_Store
 *.Rproj
 prototype
+
+# Large embedding data files
+data/bfi_item_embeddings.rda
+data/facetmap_item_embeddings.rda
