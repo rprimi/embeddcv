@@ -1,19 +1,17 @@
 Package: embeddcv
 Title: Embeddings and Cosine Similarity Analysis for Psychological Scales
 Version: 0.1.0
-Authors@R: 
-    person(given = "Ricardo", 
-           family = "Primi", 
+Authors@R: c(
+    person("Ricardo", "Primi", 
            email = "rprimi@mac.com", 
-           role = c("aut", "cre"))
-    person(given = "Carlos", 
-           family = "Henrique Nunes", 
+           role = c("aut", "cre")),
+    person("Carlos", "Henrique Nunes", 
            email = "carloshnunes@me.com",
-           role = c("ctb"))
-    person(given = "Araê", 
-           family = "Cainâ", 
+           role = "ctb"),
+    person("Araê", "Cainâ", 
            email = "arae@zanity.com.br",
-           role = c("aut"))
+           role = "aut")
+)
 Description: Tools for analyzing psychological scales using embeddings and cosine similarity. The package provides functions to generate embeddings from text using OpenAI's API, compute cosine similarities between items and scales, and analyze the relationships between items and factors using various complexity measures.
 License: MIT + file LICENSE
 Encoding: UTF-8
