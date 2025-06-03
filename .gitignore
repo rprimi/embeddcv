@@ -9,3 +9,5 @@ prototype
 # Large embedding data files
 data/bfi_item_embeddings.rda
 data/facetmap_item_embeddings.rda
+data/bfi_item_embeddings.RDS
+data/facetmap_item_embeddings.RDS
