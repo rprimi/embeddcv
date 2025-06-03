@@ -18,7 +18,7 @@ You can install the development version of embeddcv from GitHub with:
 ``` r
 # install.packages("devtools")
 devtools::install_github("rprimi/embeddcv")
-devtools::load_all()
+
 ```
 
 ## Main Functions
@@ -132,9 +132,6 @@ library(embeddcv)
   file = "results.xlsx", showNA = F, append = T, sheetName = "best_matches_aspects")
 ```
 
-\`\`\`
-
-\`\`\`r
 
 ## Requirements
 
