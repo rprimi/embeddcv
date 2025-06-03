@@ -17,7 +17,7 @@ You can install the development version of embeddcv from GitHub with:
 
 ``` r
 # install.packages("devtools")
-devtools::install_github("ricprimi/embeddcv")
+devtools::install_github("rprimi/embeddcv")
 devtools::load_all()
 ```
 
@@ -73,10 +73,11 @@ library(embeddcv)
    model = "text-embedding-3-small"
  )
  
-# If you don't have an OpenAI API key load the saved embeddings from data()
+# If you don't have an OpenAI API key load the saved embeddings from www.labape.com.br
  
- bfi_item_embeddings <- data("bfi_item_embeddings")
- facetmap_item_embeddings <- data("facetmap_item_embeddings")
+ bfi_item_embeddings <- readRDS(url("http://www.labape.com.br/embeddcv/bfi_item_embeddings.RDS"))
+ 
+ facetmap_item_embeddings <- readRDS(url("http://www.labape.com.br/embeddcv/facetmap_item_embeddings.RDS"))
  
 # Compute avaregae embeddings for facet map scales
  library(dplyr)
