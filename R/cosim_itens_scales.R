@@ -28,7 +28,7 @@
 #'
 #' @import text2vec
 #' @importFrom dplyr bind_cols
-#' @importFrom purrr set_names
+#'
 #' @examples
 #' \dontrun{
 #' # Create sample embeddings for demonstration
@@ -36,12 +36,12 @@
 #' set.seed(123)
 #' item_emb <- matrix(runif(60, -1, 1), nrow = 6, ncol = 10)  # 6 items, 10 dimensions
 #' scale_emb <- matrix(runif(50, -1, 1), nrow = 5, ncol = 10)  # 5 scales, 10 dimensions
-#' 
+#'
 #' # Sample item texts and factors
 #' item_text <- c("I am outgoing", "I worry", "I like art", "I help others", "I am organized", "I think deeply")
 #' factor_itens <- c("E", "N", "O", "A", "C", "O")
 #' factor_scale <- c("Openness", "Conscientiousness", "Extraversion", "Agreeableness", "Neuroticism")
-#' 
+#'
 #' # Compute cosine similarities and complexity measures
 #' result <- cosim_itens_scales(item_emb, scale_emb, item_text, factor_itens, factor_scale)
 #' head(result)
@@ -49,43 +49,35 @@
 #'
 #' @export
 cosim_itens_scales <- function(
-    item_emb, 
-    scale_emb,  
-    item_text, 
-    factor_itens, 
+    item_emb,
+    scale_emb,
+    item_text,
+    factor_itens,
     factor_scale){
-  
-  library(text2vec)  
-  
+
   m1 <- as.matrix(item_emb)
-  m2 <- as.matrix(scale_emb)  
-  
-  cosim_mat <- sim2(
+  m2 <- as.matrix(scale_emb)
+
+  cosim_mat <- as.data.frame(sim2(
     x      = m1,
     y      = m2,
     method = "cosine",
     norm   = "l2"
-  )
-  
-  cosim_mat <- as.data.frame(cosim_mat) %>% set_names(factor_scale)
-  
-  
+  ))
+  colnames(cosim_mat) <- factor_scale
+
   # Calcula Hoyer's Sparsity e Hoffman's _Complexity
-  
   cosim_mat$complexity = apply(cosim_mat[ , factor_scale], MARGIN = 1, FUN = hoffman_complexity)
   cosim_mat$sparsity = apply(cosim_mat[ , factor_scale], MARGIN = 1, FUN = hoyer_sparsity)
   cosim_mat$within_sd = apply(cosim_mat[ , factor_scale], MARGIN = 1, FUN = sd)
-  
+
   cosim_mat <- bind_cols(
     item_text = item_text,
     scale = factor_itens,
     cosim_mat
-    
-  )  
-  
-  
+  )
+
   return(cosim_mat)
-  
 }
 
 #' Hoyer's Sparsity Measure
