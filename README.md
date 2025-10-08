@@ -1,6 +1,3 @@
-# README
-
-
 # embeddcv
 
 ## Overview
@@ -172,7 +169,7 @@ sankey_from_matrix(bfi_by_facets_summary_free$matriz_corr, value = 0.68)
 
 - R \>= 4.5.1
 - OpenAI API key for embedding generation
-- Required R packages: httr, jsonlite, text2vec, dplyr, purrr, networkD3
+- Required R packages: dplyr, httr, jsonlite, networkD3, reticulate, purrr, text2vec
 
 ## License
 
