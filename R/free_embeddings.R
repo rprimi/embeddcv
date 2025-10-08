@@ -43,13 +43,6 @@ free_embeddings <- function(text, path=NULL, model="BAAI/bge-large-en-v1.5") {
     pckgs <- c("transformers==4.41.0", "sentence-transformers==4.1.0")[test]
     py_install(packages=pckgs, pip = TRUE)
   }
-  #test <- sapply(c("transformers", "simpletransformers", "sentence_transformers", "compiler"), function(g) {
-  #  py_module_available(g)
-  #})
-  #if(!all(test)) {
-  #  pckgs <- c("transformers", "sentence-transformers", "simpletransformers", "compiler")[test]
-  #  py_install(packages=pckgs, pip = TRUE)
-  #}
 
   # Import necessary Python library
   sentence_transformers <- import("sentence_transformers")
