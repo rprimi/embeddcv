@@ -91,19 +91,24 @@ get_embeddings_hf_local <- function(text, model = "dwulff/mpnet-personality",
   # Generate embeddings
   message("Generating embeddings...")
   tryCatch({
-    embeddings_py <- model_obj$encode(text_py)
+   embeddings_py <- model_obj$encode(text_py)
+   # Convert numpy array to Python list before converting to R
+   embeddings_py <- embeddings_py$tolist()
   }, error = function(e) {
-    stop(paste("Failed to generate embeddings. Error:", e$message))
+   stop(paste("Failed to generate embeddings. Error:", e$message))
   })
   
-  # Convert back to R matrix/data frame
-  embeddings_matrix <- reticulate::py_to_r(embeddings_py)
+  # Convert back to R - this gives us a list of numeric vectors
+  embeddings_list <- reticulate::py_to_r(embeddings_py)
+  
+  # Bind the list of vectors into a proper matrix
+  embeddings_matrix <- do.call(rbind, embeddings_list)
   
   # Convert to data frame
-  embeddings_df <- data.frame(embeddings_matrix)
+  embeddings_df <- as.data.frame(embeddings_matrix)
   
   # Add row names for easier identification
-  rownames(embeddings_df) <- paste0("text_", seq_along(text))
+  rownames(embeddings_df) <- text
   
   message(paste("Successfully generated embeddings with dimensions:", 
                 nrow(embeddings_df), "x", ncol(embeddings_df)))

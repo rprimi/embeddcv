@@ -40,7 +40,7 @@ get_embeddings_hf <- function(text, api_key = NULL, model = "sentence-transforme
   }
   
   # Define the API endpoint
-  api_url <- paste0("https://api-inference.huggingface.co/models/", model)
+  api_url <- paste0("https://api-inference.huggingface.co/pipeline/feature-extraction/", model)
   
   # Initialize results matrix
   n_texts <- length(text)
