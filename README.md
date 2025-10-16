@@ -44,19 +44,9 @@ datasets:
 # 4. Visualize results with Sankey plots
 
 ### Load the package====
-#' This package allows the user to use both Open AI API as well as
-#' HuggingFace models to extract embeddings for a user-provided
-#' text. If you are using HuggingFace models, you need to use
-#' the reticulate package. Therefore, before loading the package,
-#' be sure you have python in your path:
-#reticulate::conda_list()
-#' If using Windows, preferably, use anaconda3. Otherwise, just set
-#'  your preferred path using this function (e.g.):
-#Sys.setenv(RETICULATE_PYTHON = "C:\\Users\\anaconda3\\python.exe")
-#' Certify the path is correct:
-#reticulate::py_config()
-#' It may also be necessary to install some Python modules:
-#reticulate::py_install(packages=c("transformers", "sentence-transformers", "compiler"), pip = TRUE)
+#' This package allows the user to use OpenAI API, Google Gemini API, or
+#' HuggingFace API to extract embeddings for a user-provided text.
+#' The unified get_embeddings() function supports all three providers.
 library(embeddcv)
 
 ### Load the BFI-2 items data====
@@ -70,30 +60,35 @@ head(item_dic_bfi2)
 head(item_dic_facetmap)
 
 ### Step 1. Generate embeddings for items and domain descriptions====
-## If you have an OpenAI API key, use the  function as this:
+## If you have an OpenAI API key, use the function as this:
 #bfi_item_embeddings_api <- get_embeddings(
 #  text = item_dic_bfi2$item_en_text,
-#  path = Sys.getenv("OPENAI_API_KEY"),
+#  provider = "openai",
+#  api_key = Sys.getenv("OPENAI_API_KEY"),
 #  model = "text-embedding-3-small"
 #)
 #facetmap_item_embeddings_api <- get_embeddings(
 #  text = item_dic_facetmap$item_text,
-#  path = Sys.getenv("OPENAI_API_KEY"),
+#  provider = "openai",
+#  api_key = Sys.getenv("OPENAI_API_KEY"),
 #  model = "text-embedding-3-small"
 #)
 
-## If you don't have an OpenAI API key, you can download and use a open LLM
-# For more details, check out https://huggingface.co/models?pipeline_tag=feature-extraction
-bfi_item_embeddings_free <- get_embeddings(
-  text = item_dic_bfi2$item_en_text,
-  path = NULL,
-  model = "BAAI/bge-large-en-v1.5" # The default model for our package
-)
-facetmap_item_embeddings_free <- get_embeddings(
-  text = item_dic_facetmap$item_text,
-  path = NULL,
-  model = "BAAI/bge-large-en-v1.5" # The default model for our package
-)
+## If you have a Google API key, use the function as this:
+#bfi_item_embeddings_google <- get_embeddings(
+#  text = item_dic_bfi2$item_en_text,
+#  provider = "google",
+#  api_key = Sys.getenv("GEMINI_API_KEY"),
+#  model = "embedding-001"
+#)
+
+## If you have a HuggingFace API token, use the function as this:
+#bfi_item_embeddings_hf <- get_embeddings(
+#  text = item_dic_bfi2$item_en_text,
+#  provider = "huggingface",
+#  api_key = Sys.getenv("HF_API_TOKEN"),
+#  model = "sentence-transformers/all-MiniLM-L6-v2"
+#)
 
 ## Otherwise, for this example, you can download the saved OpenAI
 ## embeddings from www.labape.com.br
@@ -168,8 +163,8 @@ sankey_from_matrix(bfi_by_facets_summary_free$matriz_corr, value = 0.68)
 ## Requirements
 
 - R \>= 4.5.1
-- OpenAI API key for embedding generation
-- Required R packages: dplyr, httr, jsonlite, networkD3, reticulate, purrr, text2vec
+- API key for embedding generation (OpenAI, Google Gemini, or HuggingFace)
+- Required R packages: dplyr, httr, jsonlite, networkD3, purrr, text2vec
 
 ## License
 

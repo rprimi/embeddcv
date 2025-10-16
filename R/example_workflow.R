@@ -38,6 +38,11 @@ example_workflow <- function() {
   
   # For demonstration, create sample embeddings
   # In practice, these would be generated using get_embeddings() with real API
+  # Example usage with different providers:
+  # embeddings_openai <- get_embeddings(text = item_texts, provider = "openai", api_key = "your_key")
+  # embeddings_google <- get_embeddings(text = item_texts, provider = "google", api_key = "your_key") 
+  # embeddings_hf <- get_embeddings(text = item_texts, provider = "huggingface", api_key = "your_key")
+  
   set.seed(123)
   n_items <- 10
   n_scales <- 5
