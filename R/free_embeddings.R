@@ -40,12 +40,12 @@ free_embeddings <- function(text, path=NULL, model="BAAI/bge-large-en-v1.5") {
     py_module_available(g)
   })
   if(!all(test)) {
-    pckgs <- c("transformers==4.41.0", "sentence-transformers==4.1.0")[test]
+   pckgs <- c("transformers==4.41.0", "sentence-transformers==4.1.0")[!test]
     py_install(packages=pckgs, pip = TRUE)
   }
 
   # Import necessary Python library
-  sentence_transformers <- import("sentence_transformers")
+  sentence_transformers <- import(module = "sentence_transformers")
 
   # Load the wanted model (in this case, BGE-Large)
   LLM <- sentence_transformers$SentenceTransformer(model)
