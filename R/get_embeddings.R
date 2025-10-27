@@ -9,7 +9,7 @@
 #' @param model Character. The embedding model to use. Defaults vary by provider:
 #'   - OpenAI: 'text-embedding-3-small'
 #'   - Google: 'embedding-001'
-#'   - HuggingFace: 'sentence-transformers/all-MiniLM-L6-v2'
+#'   - HuggingFace: 'BAAI/bge-large-en-v1.5'
 #'
 #' @return A data frame where each row represents an embedding vector for the corresponding input text.
 #'
@@ -45,7 +45,7 @@
 #'    text = item_texts,
 #'    provider = "huggingface",
 #'    api_key = "your_hf_api_token",
-#'    model = "sentence-transformers/all-MiniLM-L6-v2"
+#'    model = "BAAI/bge-large-en-v1.5"
 #'  )
 #'
 #'  # View the structure of the embeddings
@@ -54,21 +54,21 @@
 #'
 #' @export
 get_embeddings <- function(text, provider = "openai", api_key = NULL, model = NULL) {
-  
+
   # Validate provider
   valid_providers <- c("openai", "google", "huggingface")
   if (!provider %in% valid_providers) {
     stop("Invalid provider. Must be one of: ", paste(valid_providers, collapse = ", "))
   }
-  
+
   # Set default models based on provider
   if (is.null(model)) {
     model <- switch(provider,
                    "openai" = "text-embedding-3-small",
                    "google" = "embedding-001",
-                   "huggingface" = "sentence-transformers/all-MiniLM-L6-v2")
+                   "huggingface" = "BAAI/bge-large-en-v1.5")
   }
-  
+
   # Route to appropriate function based on provider
   switch(provider,
          "openai" = {

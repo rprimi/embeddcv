@@ -2,43 +2,70 @@
 % Please edit documentation in R/get_embeddings.R
 \name{get_embeddings}
 \alias{get_embeddings}
-\title{Generate Text Embeddings using OpenAI API or HuggingFace Models}
+\title{Generate Text Embeddings using Multiple Providers}
 \usage{
-get_embeddings(text, path = NULL, model = "text-embedding-3-small")
+get_embeddings(text, provider = "openai", api_key = NULL, model = NULL)
 }
 \arguments{
 \item{text}{Character vector. One or more texts to be transformed into embeddings.}
 
-\item{path}{Character. Either your OpenAI API key (if using a OpenAI API model),
-or the path to your preferred Python environment.}
+\item{provider}{Character. The embedding provider to use: 'openai', 'google', or 'huggingface' (default: 'openai').}
 
-\item{model}{Character. The embedding model to use (default: 'text-embedding-3-small').}
+\item{api_key}{Character. Your API key for the chosen provider. If not provided, will try to get from environment variables.}
+
+\item{model}{Character. The embedding model to use. Defaults vary by provider:
+\itemize{
+\item OpenAI: 'text-embedding-3-small'
+\item Google: 'embedding-001'
+\item HuggingFace: 'sentence-transformers/all-MiniLM-L6-v2'
+}}
 }
 \value{
 A data frame where each row represents an embedding vector for the corresponding input text.
 }
 \description{
-This function generates text embeddings using OpenAI's embedding or HuggingFace
-models. It accepts vectors of text and returns embeddings as a data frame. If
-using HuggingFace models, please be aware that you have to download those models
-to your own machine. Therefore, always be sure that you have enough memory space
-before downloading any model and that it comes from a source you trust
-(more information at: https://huggingface.co/models?pipeline_tag=feature-extraction).
+This function generates text embeddings using OpenAI, Google Gemini, or HuggingFace APIs.
+It accepts vectors of text and returns embeddings as a data frame.
+}
+\details{
+The function automatically determines the appropriate API key environment variable based on the provider:
+\itemize{
+\item OpenAI: OPENAI_API_KEY
+\item Google: GEMINI_API_KEY
+\item HuggingFace: HF_API_KEY
+}
 }
 \examples{
- \dontrun{
- # Get embeddings for sample texts (requires API key)
- api_key <- "your_openai_api_key_here"
+\dontrun{
+ # Get embeddings using OpenAI (requires API key)
  item_texts <- c("I am outgoing", "I worry a lot", "I like art")
 
- embeddings <- get_embeddings(
+ # OpenAI embeddings
+ embeddings_openai <- get_embeddings(
    text = item_texts,
-   path = api_key,
+   provider = "openai",
+   api_key = "your_openai_api_key",
    model = "text-embedding-3-small"
  )
 
+ # Google embeddings
+ embeddings_google <- get_embeddings(
+   text = item_texts,
+   provider = "google",
+   api_key = "your_google_api_key",
+   model = "embedding-001"
+ )
+
+ # HuggingFace embeddings
+ embeddings_hf <- get_embeddings(
+   text = item_texts,
+   provider = "huggingface",
+   api_key = "your_hf_api_token",
+   model = "sentence-transformers/all-MiniLM-L6-v2"
+ )
+
  # View the structure of the embeddings
- dim(embeddings)  # Shows number of items and embedding dimensions
- }
+ dim(embeddings_openai)  # Shows number of items and embedding dimensions
+}
 
 }
