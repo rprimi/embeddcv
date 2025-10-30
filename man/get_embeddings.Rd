@@ -17,7 +17,7 @@ get_embeddings(text, provider = "openai", api_key = NULL, model = NULL)
 \itemize{
 \item OpenAI: 'text-embedding-3-small'
 \item Google: 'embedding-001'
-\item HuggingFace: 'sentence-transformers/all-MiniLM-L6-v2'
+\item HuggingFace: 'BAAI/bge-large-en-v1.5'
 }}
 }
 \value{
@@ -61,7 +61,7 @@ The function automatically determines the appropriate API key environment variab
    text = item_texts,
    provider = "huggingface",
    api_key = "your_hf_api_token",
-   model = "sentence-transformers/all-MiniLM-L6-v2"
+   model = "BAAI/bge-large-en-v1.5"
  )
 
  # View the structure of the embeddings

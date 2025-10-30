@@ -40,7 +40,7 @@ get_embeddings_hf <- function(text, api_key = NULL, model = "BAAI/bge-large-en-v
   }
 
   # Define the API endpoint
-  api_url <- paste0("https://api-inference.huggingface.co/models/", model)
+  api_url <- paste0("https://router.huggingface.co/hf-inference/models/", model)
 
   # Set request body
   request_body <- list(
