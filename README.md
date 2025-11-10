@@ -121,7 +121,14 @@ sankey_from_matrix(
 
 ## 📚 Complete Example: Mapping BFI-2 to Facetmap Scales
 
-This example demonstrates the complete workflow for mapping BFI-2 personality facets to the 70 Facetmap scales:
+This example demonstrates the complete workflow for mapping BFI-2 personality facets (Soto & John, 2017) to the 70 Facetmap scales (Irwing, Hughes, Tokarev, & Booth, 2023):
+
+
+Irwing, P., Hughes, D. J., Tokarev, A., & Booth, T. (2023). Towards a taxonomy of personality facets. European Journal of Personality, 38(3), 494-515. https://doi.org/10.1177/08902070231200919 (Original work published 2024)
+
+see https://facetmap.org
+
+Soto, C. J., & John, O. P. (2017). Big Five Inventory-2 (BFI-2) [Database record]. APA PsycTests. https://doi.org/10.1037/t64008-000
 
 ```r
 library(embeddcv)
@@ -208,6 +215,7 @@ The package includes two example datasets:
 
 - **`item_dic_bfi2`**: BFI-2 personality inventory items with English text and factor mappings
 - **`item_dic_facetmap`**: Facetmap scale items with 70 personality facets
+()
 
 ```r
 # Explore the datasets
@@ -218,25 +226,15 @@ data("item_dic_facetmap", package = "embeddcv")
 head(item_dic_facetmap)
 ```
 
-## 🤝 Contributing
-
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
 ## 📄 Citation
 
 If you use `embeddcv` in your research, please cite:
 
 ```bibtex
-@software{embeddcv2024,
+@software{embeddcv2025,
   title = {embeddcv: Analyzing Psychological Scales with Embeddings},
-  author = {Primi, R.},
-  year = {2024},
+  author = {Primi, R. & Franco, V. R., Nunes, C. H. & Cainã, A.},
+  year = {2025},
   url = {https://github.com/rprimi/embeddcv}
 }
 ```
@@ -248,9 +246,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📧 Contact
 
-- **Author**: R. Primi
+- **Author**: R. Primi, V. R. Franco, Nunes, C. H, Cainã, A.
 - **Repository**: [GitHub](https://github.com/rprimi/embeddcv)
 - **Issues**: [Report a bug](https://github.com/rprimi/embeddcv/issues)
-- **Website**: [LabAPE](http://www.labape.com.br)
 
 ---
