@@ -28,9 +28,8 @@
 #'  dim(embeddings)  # Shows number of items and embedding dimensions
 #' }
 #'
-#' @export
 get_embeddings_google <- function(text, api_key = NULL, model = "embedding-001") {
-  
+
   # Get API key from environment if not provided
   if (is.null(api_key)) {
     api_key <- Sys.getenv("GEMINI_API_KEY")
@@ -38,16 +37,16 @@ get_embeddings_google <- function(text, api_key = NULL, model = "embedding-001")
       stop("Google API key is required. Please provide api_key parameter or set GEMINI_API_KEY environment variable.")
     }
   }
-  
+
   # Initialize results matrix
   n_texts <- length(text)
   embeddings_list <- vector("list", n_texts)
-  
+
   # Process each text
   for (i in seq_along(text)) {
     # Prepare the request
     model_query <- paste0(model, ":embedContent")
-    
+
     response <- POST(
       url = paste0("https://generativelanguage.googleapis.com/v1beta/models/", model_query),
       query = list(key = api_key),
@@ -62,7 +61,7 @@ get_embeddings_google <- function(text, api_key = NULL, model = "embedding-001")
         )
       )
     )
-    
+
     # Check for successful response
     if (response$status_code == 200) {
       embeddings_list[[i]] <- unlist(content(response)$embedding$values)
@@ -71,10 +70,10 @@ get_embeddings_google <- function(text, api_key = NULL, model = "embedding-001")
            "\nResponse: ", content(response, "text"))
     }
   }
-  
+
   # Convert list to matrix/data frame
   embeddings_matrix <- do.call(rbind, embeddings_list)
   embeddings_df <- data.frame(embeddings_matrix)
-  
+
   return(embeddings_df)
 }

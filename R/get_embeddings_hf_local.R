@@ -13,9 +13,11 @@
 #' @details
 #' This function uses the reticulate package to interface with Python's sentence-transformers library.
 #' It will automatically install the required packages if they're not available.
-#' 
+#'
 #' The function downloads the model on first use, which may take some time depending on model size.
 #' Subsequent calls with the same model will be faster as the model is cached locally.
+#'
+#' @importFrom reticulate import py_install py_module_available
 #'
 #' @examples
 #' \dontrun{
@@ -31,7 +33,7 @@
 #'
 #'  # View the structure of the embeddings
 #'  dim(embeddings)  # Shows number of items and embedding dimensions
-#'  
+#'
 #'  # Try with other models
 #'  embeddings_mpnet <- get_embeddings_hf_local(
 #'    text = item_texts,
@@ -39,24 +41,22 @@
 #'  )
 #' }
 #'
-#' @importFrom reticulate import py_install py_module_available
-#' @export
-get_embeddings_hf_local <- function(text, model = "dwulff/mpnet-personality", 
+get_embeddings_hf_local <- function(text, model = "dwulff/mpnet-personality",
                                    python_env = NULL, install_packages = TRUE) {
-  
+
   # Check if reticulate is available
   if (!requireNamespace("reticulate", quietly = TRUE)) {
     stop("The 'reticulate' package is required but not installed. Please install it with: install.packages('reticulate')")
   }
-  
+
   # Set Python environment if specified
   if (!is.null(python_env)) {
     reticulate::use_python(python_env)
   }
-  
+
   # Check and install required Python packages
   required_packages <- c("sentence_transformers", "torch")
-  
+
   for (pkg in required_packages) {
     if (!reticulate::py_module_available(pkg)) {
       if (install_packages) {
@@ -67,27 +67,27 @@ get_embeddings_hf_local <- function(text, model = "dwulff/mpnet-personality",
       }
     }
   }
-  
+
   # Import the sentence_transformers module
   tryCatch({
     st <- reticulate::import("sentence_transformers")
   }, error = function(e) {
     stop("Failed to import sentence_transformers. Please ensure it's properly installed.")
   })
-  
+
   # Load the model
   message(paste("Loading model:", model))
   message("Note: First-time model loading may take several minutes to download...")
-  
+
   tryCatch({
     model_obj <- st$SentenceTransformer(model)
   }, error = function(e) {
     stop(paste("Failed to load model", model, ". Error:", e$message))
   })
-  
+
   # Convert text to Python list
   text_py <- reticulate::r_to_py(text)
-  
+
   # Generate embeddings
   message("Generating embeddings...")
   tryCatch({
@@ -97,22 +97,22 @@ get_embeddings_hf_local <- function(text, model = "dwulff/mpnet-personality",
   }, error = function(e) {
    stop(paste("Failed to generate embeddings. Error:", e$message))
   })
-  
+
   # Convert back to R - this gives us a list of numeric vectors
   embeddings_list <- reticulate::py_to_r(embeddings_py)
-  
+
   # Bind the list of vectors into a proper matrix
   embeddings_matrix <- do.call(rbind, embeddings_list)
-  
+
   # Convert to data frame
   embeddings_df <- as.data.frame(embeddings_matrix)
-  
+
   # Add row names for easier identification
   rownames(embeddings_df) <- text
-  
-  message(paste("Successfully generated embeddings with dimensions:", 
+
+  message(paste("Successfully generated embeddings with dimensions:",
                 nrow(embeddings_df), "x", ncol(embeddings_df)))
-  
+
   return(embeddings_df)
 }
 
@@ -133,25 +133,25 @@ get_embeddings_hf_local <- function(text, model = "dwulff/mpnet-personality",
 #' @importFrom reticulate import py_install py_module_available
 #' @export
 check_hf_models_local <- function() {
-  
+
   # Check if reticulate is available
   if (!requireNamespace("reticulate", quietly = TRUE)) {
     stop("The 'reticulate' package is required but not installed. Please install it with: install.packages('reticulate')")
   }
-  
+
   # Check Python packages
   packages_status <- list(
     sentence_transformers = reticulate::py_module_available("sentence_transformers"),
     torch = reticulate::py_module_available("torch")
   )
-  
+
   # Get Python version info
   python_info <- tryCatch({
     reticulate::py_config()
   }, error = function(e) {
     list(error = e$message)
   })
-  
+
   return(list(
     packages_available = packages_status,
     python_config = python_info,

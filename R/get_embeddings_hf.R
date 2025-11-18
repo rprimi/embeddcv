@@ -28,7 +28,6 @@
 #'  dim(embeddings)  # Shows number of items and embedding dimensions
 #' }
 #'
-#' @export
 get_embeddings_hf <- function(text, api_key = NULL, model = "BAAI/bge-large-en-v1.5") {
 
   # Get API key from environment if not provided

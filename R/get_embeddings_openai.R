@@ -18,7 +18,7 @@
 #'  api_key <- "your_openai_api_key_here"
 #'  item_texts <- c("I am outgoing", "I worry a lot", "I like art")
 #'
-#'  embeddings <- openai_embeddings(
+#'  embeddings <- get_embeddings_openai(
 #'    text = item_texts,
 #'    api_key = api_key,
 #'    model = "text-embedding-3-small"
@@ -28,7 +28,7 @@
 #'  dim(embeddings)  # Shows number of items and embedding dimensions
 #' }
 #'
-openai_embeddings <- function(text, api_key, model = 'text-embedding-3-small') {
+get_embeddings_openai <- function(text, api_key, model = 'text-embedding-3-small') {
   # Online path to OpenAI's API
   url <- "https://api.openai.com/v1/embeddings"
 

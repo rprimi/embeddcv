@@ -78,7 +78,7 @@ get_embeddings <- function(text, provider = "openai", api_key = NULL, model = NU
                stop("OpenAI API key is required. Please provide api_key parameter or set OPENAI_API_KEY environment variable.")
              }
            }
-           openai_embeddings(text = text, api_key = api_key, model = model)
+           get_embeddings_openai(text = text, api_key = api_key, model = model)
          },
          "google" = {
            get_embeddings_google(text = text, api_key = api_key, model = model)
