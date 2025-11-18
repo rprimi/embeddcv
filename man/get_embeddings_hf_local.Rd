@@ -48,7 +48,7 @@ Subsequent calls with the same model will be faster as the model is cached local
 
  # View the structure of the embeddings
  dim(embeddings)  # Shows number of items and embedding dimensions
- 
+
  # Try with other models
  embeddings_mpnet <- get_embeddings_hf_local(
    text = item_texts,

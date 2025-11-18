@@ -42,22 +42,16 @@ get_embeddings_hf <- function(text, api_key = NULL, model = "BAAI/bge-large-en-v
   api_url <- paste0("https://router.huggingface.co/hf-inference/models/", model)
 
   # Set request body
-  request_body <- list(
-    inputs = text,  # Just pass the texts directly
-    options = list(wait_for_model = TRUE)
-  )
+  request_body <- list(inputs = text,  # Just pass the texts directly
+                       options = list(wait_for_model = TRUE))
 
   # Send request to HF
-  response <- POST(
-    url = api_url,
-    add_headers(
-      Authorization = paste("Bearer", api_key),
-      "Content-Type" = "application/json"
-    ),
-    body = toJSON(request_body, auto_unbox = TRUE),
-    encode = "json",
-    timeout(30)
-  )
+  response <- POST(url = api_url,
+                   config = add_headers(Authorization = paste("Bearer", api_key),
+                                        "Content-Type" = "application/json"),
+                   body = toJSON(request_body, auto_unbox = TRUE),
+                   encode = "json",
+                   timeout(30))
 
   # Return embeddings if all is good; else return an error
   if(response$status_code == 200) {

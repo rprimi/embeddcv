@@ -9,6 +9,9 @@
 #' @param temperature Numeric between 0 and 1. The level of randomness of the response. Defaults to 1.
 #'
 #' @return A string with the ChatBot response.
+#'#'
+#' @importFrom httr POST add_headers timeout content
+#' @importFrom jsonlite fromJSON toJSON
 #'
 #' @details
 #' The function automatically determines the appropriate API key from the "HF_API_KEY" environment variable.
@@ -41,18 +44,27 @@ get_response_hf <- function(prompt = NULL, model = 'google/gemma-2-2b-it',
                   temperature = temperature)
 
   # Send request to HF
-  res <- httr::POST(url=url,
-                    config=httr::add_headers(Authorization = paste("Bearer", api_key),
-                                             `Content-Type` = "application/json"),
-                    body = jsonlite::toJSON(payload, auto_unbox = TRUE))
+  res <- POST(url=url,
+              config = add_headers(Authorization = paste("Bearer", api_key),
+                                   "Content-Type" = "application/json"),
+              body = toJSON(payload, auto_unbox = TRUE),
+              encode = "json",
+              timeout(30))
 
-  # Get the response; else throw an error
-  txt <- httr::content(res, "text", encoding = "UTF-8")
-  out <- tryCatch(jsonlite::fromJSON(txt), error = function(e) "Unkown error :( Please try another model")
-
-  if (!is.null(out$error)) {
-    stop(out$error$message)
+  # Return response if all is good; else return an error
+  if(res$status_code == 200) {
+    txt <- content(res, "text", encoding = "UTF-8")
+    out <- tryCatch(fromJSON(txt), error = function(e) stop("Unkown error. Please try another model"))
+    if (!is.null(out$error)) {
+      stop(out$error$message)
+    } else {
+      out$choices$message$content
+    }
   } else {
-    return(out$choices$message$content)
+    # Error message
+    cat(paste("Error status:", res$status_code,"\n"))
+    response_text <- content(res, "text", encoding = "UTF-8")
+    cat("Error response:\n")
+    cat(response_text,"\n")
   }
 }
