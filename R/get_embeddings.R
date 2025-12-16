@@ -10,6 +10,7 @@
 #'   - OpenAI: 'text-embedding-3-small'
 #'   - Google: 'embedding-001'
 #'   - HuggingFace: 'BAAI/bge-large-en-v1.5'
+#' @param timeout Integer. Number of seconds to wait for a response until giving up. Can not be less than 1 ms. Used when provider is 'huggingface'.
 #'
 #' @return A data frame where each row represents an embedding vector for the corresponding input text.
 #'
@@ -53,7 +54,7 @@
 #' }
 #'
 #' @export
-get_embeddings <- function(text, provider = "openai", api_key = NULL, model = NULL) {
+get_embeddings <- function(text, provider = "openai", api_key = NULL, model = NULL, timeout = 30) {
 
   # Validate provider
   valid_providers <- c("openai", "google", "huggingface")
@@ -84,6 +85,6 @@ get_embeddings <- function(text, provider = "openai", api_key = NULL, model = NU
            get_embeddings_google(text = text, api_key = api_key, model = model)
          },
          "huggingface" = {
-           get_embeddings_hf(text = text, api_key = api_key, model = model)
+           get_embeddings_hf(text = text, api_key = api_key, model = model, timeout = timeout)
          })
 }

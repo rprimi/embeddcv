@@ -6,6 +6,7 @@
 #' @param text Character vector. One or more texts to be transformed into embeddings.
 #' @param api_key Character. Your HuggingFace API token. If not provided, will try to get from environment variable HF_API_KEY.
 #' @param model Character. The embedding model to use (default: 'BAAI/bge-large-en-v1.5').
+#' @param timeout Integer. Number of seconds to wait for a response until giving up. Can not be less than 1 ms.
 #'
 #' @return A data frame where each row represents an embedding vector for the corresponding input text.
 #'
@@ -28,13 +29,13 @@
 #'  dim(embeddings)  # Shows number of items and embedding dimensions
 #' }
 #'
-get_embeddings_hf <- function(text, api_key = NULL, model = "BAAI/bge-large-en-v1.5") {
+get_embeddings_hf <- function(text, api_key = NULL, model = "BAAI/bge-large-en-v1.5", timeout=30) {
 
   # Get API key from environment if not provided
   if (is.null(api_key)) {
     api_key <- Sys.getenv("HF_API_KEY")
     if (nchar(api_key) < 1) {
-      stop("HuggingFace API token is required. Please provide api_key parameter or set HF_API_KEY environment variable.")
+      stop("HuggingFace API token required. Please provide api_key parameter or set HF_API_KEY environment variable.")
     }
   }
 
@@ -51,7 +52,7 @@ get_embeddings_hf <- function(text, api_key = NULL, model = "BAAI/bge-large-en-v
                                         "Content-Type" = "application/json"),
                    body = toJSON(request_body, auto_unbox = TRUE),
                    encode = "json",
-                   timeout(30))
+                   timeout(timeout))
 
   # Return embeddings if all is good; else return an error
   if(response$status_code == 200) {
@@ -60,7 +61,13 @@ get_embeddings_hf <- function(text, api_key = NULL, model = "BAAI/bge-large-en-v
     # Parse the JSON manually
     embeddings_df <- fromJSON(response_text)
     # Return embedding
-    return(embeddings_df)
+    if(is.list(embeddings_df)) {
+      return(t(sapply(embeddings_df, colMeans)))
+    } else if({length(text) == 1} & {nrow(embeddings_df) > 1}) {
+      return(colMeans(embeddings_df))
+    } else {
+      return(embeddings_df)
+    }
   } else {
     # Error message
     cat(paste("Error status:", response$status_code,"\n"))
