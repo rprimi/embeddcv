@@ -4,7 +4,13 @@
 \alias{get_embeddings}
 \title{Generate Text Embeddings using Multiple Providers}
 \usage{
-get_embeddings(text, provider = "openai", api_key = NULL, model = NULL)
+get_embeddings(
+  text,
+  provider = "openai",
+  api_key = NULL,
+  model = NULL,
+  timeout = 30
+)
 }
 \arguments{
 \item{text}{Character vector. One or more texts to be transformed into embeddings.}
@@ -19,6 +25,8 @@ get_embeddings(text, provider = "openai", api_key = NULL, model = NULL)
 \item Google: 'embedding-001'
 \item HuggingFace: 'BAAI/bge-large-en-v1.5'
 }}
+
+\item{timeout}{Integer. Number of seconds to wait for a response until giving up. Can not be less than 1 ms. Used when provider is 'huggingface'.}
 }
 \value{
 A data frame where each row represents an embedding vector for the corresponding input text.

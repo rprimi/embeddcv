@@ -4,7 +4,12 @@
 \alias{get_embeddings_hf}
 \title{Generate Text Embeddings using HuggingFace API}
 \usage{
-get_embeddings_hf(text, api_key = NULL, model = "BAAI/bge-large-en-v1.5")
+get_embeddings_hf(
+  text,
+  api_key = NULL,
+  model = "BAAI/bge-large-en-v1.5",
+  timeout = 30
+)
 }
 \arguments{
 \item{text}{Character vector. One or more texts to be transformed into embeddings.}
@@ -12,6 +17,8 @@ get_embeddings_hf(text, api_key = NULL, model = "BAAI/bge-large-en-v1.5")
 \item{api_key}{Character. Your HuggingFace API token. If not provided, will try to get from environment variable HF_API_KEY.}
 
 \item{model}{Character. The embedding model to use (default: 'BAAI/bge-large-en-v1.5').}
+
+\item{timeout}{Integer. Number of seconds to wait for a response until giving up. Can not be less than 1 ms.}
 }
 \value{
 A data frame where each row represents an embedding vector for the corresponding input text.
