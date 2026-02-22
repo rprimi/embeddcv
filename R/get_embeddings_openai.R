@@ -7,7 +7,7 @@
 #' @param text Character vector. One or more texts to be transformed into embeddings.
 #' @param api_key Character. Your OpenAI API key.
 #' @param model Character. The embedding model to use (Default: 'text-embedding-3-small').
-#' @param batch_size Integer. Number of texts per request (Default: 500).
+#' @param batch_size Integer. Number of texts per request (Default: 10000).
 #' @param sleep Numeric. Seconds to pause between batches (Default: 0). Useful for rate limits.
 #' @param progress Logical. Print simple progress messages (Default: TRUE).
 #'
