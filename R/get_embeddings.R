@@ -11,6 +11,7 @@
 #'   - Google: 'embedding-001'
 #'   - HuggingFace: 'BAAI/bge-large-en-v1.5'
 #' @param timeout Integer. Number of seconds to wait for a response until giving up. Can not be less than 1 ms. Used when provider is 'huggingface'.
+#' @param batch_size Integer. Number of texts per request (Default: 10000).
 #'
 #' @return A data frame where each row represents an embedding vector for the corresponding input text.
 #'
