@@ -29,7 +29,9 @@ Imports:
     reticulate,
     purrr,
     Rtsne,
+    scales,
     text2vec,
+    tidyr,
     umap
 Suggests: 
     testthat (>= 3.0.0)
