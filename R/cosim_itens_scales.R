@@ -16,6 +16,8 @@
 #'     \item{item_text}{Original text or label for each item.}
 #'     \item{scale}{Factor or group label for each item.}
 #'     \item{<scale columns>}{Cosine similarity of each item to each scale.}
+#'     \item{best_target_factor}{Name of the scale with the highest cosine similarity for each item.}
+#'     \item{second_best_target_factor}{Name of the scale with the second highest cosine similarity for each item.}
 #'     \item{complexity}{Hoffman's Complexity Index for each item's cosine similarity profile.}
 #'     \item{sparsity}{Hoyer's Sparsity Index for each item's similarity profile.}
 #'     \item{within_sd}{Standard deviation of the cosine similarities for each item (row-wise).}
@@ -67,6 +69,15 @@ cosim_itens_scales <- function(
   colnames(cosim_mat) <- factor_scale
 
   # Calcula Hoyer's Sparsity e Hoffman's _Complexity
+  # Best and second best scale per item
+  best_two <- t(apply(cosim_mat[ , factor_scale], MARGIN = 1, FUN = function(x) {
+    ord <- order(x, decreasing = TRUE)
+    c(best_target_factor   = factor_scale[ord[1]],
+      second_best_target_factor = if (length(ord) > 1) factor_scale[ord[2]] else NA_character_)
+  }))
+  cosim_mat$best_target_factor        <- best_two[ , "best_target_factor"]
+  cosim_mat$second_best_target_factor <- best_two[ , "second_best_target_factor"]
+
   cosim_mat$complexity = apply(cosim_mat[ , factor_scale], MARGIN = 1, FUN = hoffman_complexity)
   cosim_mat$sparsity = apply(cosim_mat[ , factor_scale], MARGIN = 1, FUN = hoyer_sparsity)
   cosim_mat$within_sd = apply(cosim_mat[ , factor_scale], MARGIN = 1, FUN = sd)
