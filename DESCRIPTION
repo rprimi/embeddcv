@@ -30,6 +30,7 @@ Imports:
     purrr,
     Rtsne,
     scales,
+    stringr,
     text2vec,
     tidyr,
     umap

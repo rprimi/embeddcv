@@ -1,91 +1,103 @@
 #' Generate Text Embeddings using Multiple Providers
 #'
-#' This function generates text embeddings using OpenAI, Google Gemini, or HuggingFace APIs.
-#' It accepts vectors of text and returns embeddings as a data frame.
+#' Generates text embeddings using OpenAI, Google Gemini, HuggingFace Inference API,
+#' or HuggingFace models running locally via Python.
 #'
-#' @param text Character vector. One or more texts to be transformed into embeddings.
-#' @param provider Character. The embedding provider to use: 'openai', 'google', or 'huggingface' (default: 'openai').
-#' @param api_key Character. Your API key for the chosen provider. If not provided, will try to get from environment variables.
-#' @param model Character. The embedding model to use. Defaults vary by provider:
-#'   - OpenAI: 'text-embedding-3-small'
-#'   - Google: 'embedding-001'
-#'   - HuggingFace: 'BAAI/bge-large-en-v1.5'
-#' @param timeout Integer. Number of seconds to wait for a response until giving up. Can not be less than 1 ms. Used when provider is 'huggingface'.
-#' @param batch_size Integer. Number of texts per request (Default: 10000).
+#' @param text Character vector. One or more texts to embed.
+#' @param provider Character. One of \code{'openai'}, \code{'google'},
+#'   \code{'huggingface'}, or \code{'huggingface_local'} (default: \code{'openai'}).
+#' @param api_key Character. API key for the chosen provider. If \code{NULL}, reads
+#'   from the relevant environment variable (\code{OPENAI_API_KEY}, \code{GEMINI_API_KEY},
+#'   or \code{HF_API_KEY}). Not used for \code{'huggingface_local'}.
+#' @param model Character. Embedding model to use. Defaults by provider:
+#'   \itemize{
+#'     \item \code{openai}: \code{'text-embedding-3-small'}
+#'     \item \code{google}: \code{'embedding-001'}
+#'     \item \code{huggingface}: \code{'BAAI/bge-large-en-v1.5'}
+#'     \item \code{huggingface_local}: \code{'dwulff/mpnet-personality'}
+#'   }
+#' @param timeout Integer. Seconds to wait for a response (used by HuggingFace providers,
+#'   default 30).
+#' @param batch_size Integer. Number of texts per API request (default 10000).
+#' @param python_env Character. Python executable or virtual environment path.
+#'   Only used when \code{provider = 'huggingface_local'}.
+#' @param install_packages Logical. Whether to auto-install missing Python packages.
+#'   Only used when \code{provider = 'huggingface_local'} (default \code{TRUE}).
 #'
-#' @return A data frame where each row represents an embedding vector for the corresponding input text.
-#'
-#' @details
-#' The function automatically determines the appropriate API key environment variable based on the provider:
-#' - OpenAI: OPENAI_API_KEY
-#' - Google: GEMINI_API_KEY
-#' - HuggingFace: HF_API_KEY
+#' @return A data frame where each row is the embedding vector for the corresponding
+#'   input text.
 #'
 #' @examples
 #' \dontrun{
-#'  # Get embeddings using OpenAI (requires API key)
-#'  item_texts <- c("I am outgoing", "I worry a lot", "I like art")
+#'  texts <- c("I am outgoing", "I worry a lot", "I like art")
 #'
-#'  # OpenAI embeddings
-#'  embeddings_openai <- get_embeddings(
-#'    text = item_texts,
-#'    provider = "openai",
-#'    api_key = "your_openai_api_key",
-#'    model = "text-embedding-3-small"
-#'  )
+#'  # OpenAI
+#'  get_embeddings(texts, provider = "openai", api_key = "sk-...")
 #'
-#'  # Google embeddings
-#'  embeddings_google <- get_embeddings(
-#'    text = item_texts,
-#'    provider = "google",
-#'    api_key = "your_google_api_key",
-#'    model = "embedding-001"
-#'  )
+#'  # HuggingFace API
+#'  get_embeddings(texts, provider = "huggingface", api_key = "hf_...")
 #'
-#'  # HuggingFace embeddings
-#'  embeddings_hf <- get_embeddings(
-#'    text = item_texts,
-#'    provider = "huggingface",
-#'    api_key = "your_hf_api_token",
-#'    model = "BAAI/bge-large-en-v1.5"
-#'  )
-#'
-#'  # View the structure of the embeddings
-#'  dim(embeddings_openai)  # Shows number of items and embedding dimensions
+#'  # HuggingFace local (no API key needed)
+#'  get_embeddings(texts, provider = "huggingface_local",
+#'                 model = "dwulff/mpnet-personality")
 #' }
 #'
 #' @export
-get_embeddings <- function(text, provider = "openai", api_key = NULL, model = NULL, timeout = 30,  batch_size = 10000L) {
+get_embeddings <- function(text,
+                           provider         = "openai",
+                           api_key          = NULL,
+                           model            = NULL,
+                           timeout          = 30,
+                           batch_size       = 10000L,
+                           return_tokens    = FALSE,
+                           python_env       = NULL,
+                           install_packages = TRUE) {
 
-  # Validate provider
-  valid_providers <- c("openai", "google", "huggingface")
-  if (!provider %in% valid_providers) {
+  valid_providers <- c("openai", "google", "huggingface", "huggingface_local")
+  if (!provider %in% valid_providers)
     stop("Invalid provider. Must be one of: ", paste(valid_providers, collapse = ", "))
-  }
 
-  # Set default models based on provider
   if (is.null(model)) {
     model <- switch(provider,
-                   "openai" = "text-embedding-3-small",
-                   "google" = "embedding-001",
-                   "huggingface" = "BAAI/bge-large-en-v1.5")
+      "openai"           = "text-embedding-3-small",
+      "google"           = "embedding-001",
+      "huggingface"      = "BAAI/bge-large-en-v1.5",
+      "huggingface_local"= "dwulff/mpnet-personality"
+    )
   }
 
-  # Route to appropriate function based on provider
   switch(provider,
-         "openai" = {
-           if (is.null(api_key)) {
-             api_key <- Sys.getenv("OPENAI_API_KEY")
-             if (nchar(api_key) < 1) {
-               stop("OpenAI API key is required. Please provide api_key parameter or set OPENAI_API_KEY environment variable.")
-             }
-           }
-           get_embeddings_openai(text = text, api_key = api_key, model = model, batch_size = batch_size )
-         },
-         "google" = {
-           get_embeddings_google(text = text, api_key = api_key, model = model)
-         },
-         "huggingface" = {
-           get_embeddings_hf(text = text, api_key = api_key, model = model, timeout = timeout)
-         })
+    "openai" = {
+      if (is.null(api_key)) {
+        api_key <- Sys.getenv("OPENAI_API_KEY")
+        if (nchar(api_key) < 1)
+          stop("OpenAI API key required. Provide api_key or set OPENAI_API_KEY.")
+      }
+      get_embeddings_openai(text = text, api_key = api_key, model = model,
+                            batch_size = batch_size)
+    },
+    "google" = {
+      if (is.null(api_key)) {
+        api_key <- Sys.getenv("GEMINI_API_KEY")
+        if (nchar(api_key) < 1)
+          stop("Google API key required. Provide api_key or set GEMINI_API_KEY.")
+      }
+      get_embeddings_google(text = text, api_key = api_key, model = model)
+    },
+    "huggingface" = {
+      if (is.null(api_key)) {
+        api_key <- Sys.getenv("HF_API_KEY")
+        if (nchar(api_key) < 1)
+          stop("HuggingFace API token required. Provide api_key or set HF_API_KEY.")
+      }
+      get_embeddings_hf(text = text, api_key = api_key, model = model,
+                        timeout = timeout, batch_size = batch_size,
+                        return_tokens = return_tokens)
+    },
+    "huggingface_local" = {
+      get_embeddings_hf_local(text = text, model = model,
+                              python_env = python_env,
+                              install_packages = install_packages)
+    }
+  )
 }
