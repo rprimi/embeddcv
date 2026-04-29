@@ -11,7 +11,11 @@ plot_cosim_dims(
   show_colour = TRUE,
   colours = c("#e63946", "#457b9d", "#2a9d8f", "#e9c46a", "#f4a261", "#6a4c93",
     "#43aa8b", "#f3722c", "#577590", "#90be6d", "#c77dff", "#4cc9f0", "#fb8500",
-    "#06d6a0", "#ef476f", "#118ab2", "#ffd166", "#8ecae6", "#a8dadc", "#264653")
+    "#06d6a0", "#ef476f", "#118ab2", "#ffd166", "#8ecae6", "#a8dadc", "#264653"),
+  save_plots = FALSE,
+  plot_file_prefix = "./",
+  plot_width = 10,
+  plot_height = 8
 )
 }
 \arguments{
@@ -30,6 +34,18 @@ Points are always coloured by \code{colour_by}; this only toggles the legend.}
 the groups in \code{colour_by}. Defaults to a built-in palette of 20 distinct
 colours. Pass a named vector (e.g. \code{c(group1 = "#e63946", group2 = "#457b9d")})
 to assign colours to specific group labels.}
+
+\item{save_plots}{Logical. If \code{TRUE}, saves each plot to disk using its
+list name (e.g. \code{plot_mds.png}, \code{plot_mds_3d.html}). plotly plots
+are saved as standalone HTML; ggplot plots are saved as PNG. Default \code{FALSE}.}
+
+\item{plot_file_prefix}{Character string. Prefix prepended to each saved file
+name. Can include a directory path (e.g. \code{"results/run1_"}). Default
+\code{"./"} saves to the current working directory with no prefix.
+The directory portion is created if it does not exist.}
+
+\item{plot_width, plot_height}{Numeric. Width and height (in inches for PNG,
+pixels for HTML) for saved plots. Defaults: 10 x 8 inches / 1000 x 800 px.}
 }
 \value{
 A list with:

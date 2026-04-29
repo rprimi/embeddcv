@@ -16,6 +16,15 @@
 #'   the groups in \code{colour_by}. Defaults to a built-in palette of 20 distinct
 #'   colours. Pass a named vector (e.g. \code{c(group1 = "#e63946", group2 = "#457b9d")})
 #'   to assign colours to specific group labels.
+#' @param save_plots Logical. If \code{TRUE}, saves each plot to disk using its
+#'   list name (e.g. \code{plot_mds.png}, \code{plot_mds_3d.html}). plotly plots
+#'   are saved as standalone HTML; ggplot plots are saved as PNG. Default \code{FALSE}.
+#' @param plot_file_prefix Character string. Prefix prepended to each saved file
+#'   name. Can include a directory path (e.g. \code{"results/run1_"}). Default
+#'   \code{"./"} saves to the current working directory with no prefix.
+#'   The directory portion is created if it does not exist.
+#' @param plot_width,plot_height Numeric. Width and height (in inches for PNG,
+#'   pixels for HTML) for saved plots. Defaults: 10 x 8 inches / 1000 x 800 px.
 #'
 #' @return A list with:
 #'   \describe{
@@ -30,9 +39,10 @@
 #'     \item{plot_umap_3d}{plotly 3D scatter — UMAP (only when 3D coords present).}
 #'   }
 #'
-#' @importFrom ggplot2 ggplot aes geom_point geom_text labs theme_minimal scale_colour_manual
+#' @importFrom ggplot2 ggplot aes geom_point geom_text labs theme_minimal scale_colour_manual ggsave
 #' @importFrom plotly plot_ly layout
 #' @importFrom stringr str_wrap
+#' @importFrom htmlwidgets saveWidget
 #'
 #' @examples
 #' \dontrun{
@@ -52,15 +62,19 @@
 #' @export
 plot_cosim_dims <- function(
     coords,
-    colour_by    = "scale",
-    label_width  = 20,
-    show_colour  = TRUE,
-    colours      = c(
+    colour_by        = "scale",
+    label_width      = 20,
+    show_colour      = TRUE,
+    colours          = c(
       "#e63946", "#457b9d", "#2a9d8f", "#e9c46a", "#f4a261",
       "#6a4c93", "#43aa8b", "#f3722c", "#577590", "#90be6d",
       "#c77dff", "#4cc9f0", "#fb8500", "#06d6a0", "#ef476f",
       "#118ab2", "#ffd166", "#8ecae6", "#a8dadc", "#264653"
-    )) {
+    ),
+    save_plots       = FALSE,
+    plot_file_prefix = "./",
+    plot_width       = 10,
+    plot_height      = 8) {
 
   has_3d <- all(c("mds_3", "tsne_3", "umap_3") %in% names(coords))
 
@@ -133,6 +147,42 @@ plot_cosim_dims <- function(
     out$plot_mds_3d  <- make_plotly_3d(coords, "mds_1",  "mds_2",  "mds_3",  "MDS 3D")
     out$plot_tsne_3d <- make_plotly_3d(coords, "tsne_1", "tsne_2", "tsne_3", "t-SNE 3D")
     out$plot_umap_3d <- make_plotly_3d(coords, "umap_1", "umap_2", "umap_3", "UMAP 3D")
+  }
+
+  # ── Save plots to disk if requested ──────────────────────────────────────────
+  if (save_plots) {
+    # Ensure the directory portion of the prefix exists
+    prefix_dir <- dirname(plot_file_prefix)
+    if (nzchar(prefix_dir) && !dir.exists(prefix_dir))
+      dir.create(prefix_dir, recursive = TRUE)
+
+    for (nm in names(out)) {
+      p <- out[[nm]]
+
+      if (inherits(p, "plotly") || inherits(p, "htmlwidget")) {
+        # Interactive plotly → standalone HTML
+        file_path <- paste0(plot_file_prefix, nm, ".html")
+        # saveWidget requires an absolute path; normalize
+        htmlwidgets::saveWidget(
+          widget        = p,
+          file          = normalizePath(file_path, mustWork = FALSE),
+          selfcontained = TRUE
+        )
+        message("Saved: ", file_path)
+
+      } else if (inherits(p, "ggplot")) {
+        # Static ggplot → PNG
+        file_path <- paste0(plot_file_prefix, nm, ".png")
+        ggplot2::ggsave(
+          filename = file_path,
+          plot     = p,
+          width    = plot_width,
+          height   = plot_height,
+          dpi      = 150
+        )
+        message("Saved: ", file_path)
+      }
+    }
   }
 
   out
