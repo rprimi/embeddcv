@@ -18,5 +18,5 @@ Computes Hoffman's complexity index for a numeric vector, often used for factor 
 \details{
 Hoffman's complexity index is defined as:
 \deqn{ \frac{(\sum x^2)^2}{\sum x^4} }
-This measure captures the spread or d
+This measure captures the spread or dominance of loadings across dimensions.
 }

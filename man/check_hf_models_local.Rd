@@ -2,22 +2,14 @@
 % Please edit documentation in R/get_embeddings_hf_local.R
 \name{check_hf_models_local}
 \alias{check_hf_models_local}
-\title{Check Available HuggingFace Models Locally}
+\title{Check Local HuggingFace Python Environment}
 \usage{
 check_hf_models_local()
 }
 \value{
-A list with information about available models and Python environment.
+A list with package availability status and Python configuration.
 }
 \description{
-This function checks which HuggingFace models are available locally
-and provides information about installed models.
-}
-\examples{
-\dontrun{
- # Check what's available
- model_info <- check_hf_models_local()
- print(model_info)
-}
-
+Reports whether the required Python packages for \code{get_embeddings_hf_local()}
+are available.
 }

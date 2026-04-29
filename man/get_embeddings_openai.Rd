@@ -2,9 +2,16 @@
 % Please edit documentation in R/get_embeddings_openai.R
 \name{get_embeddings_openai}
 \alias{get_embeddings_openai}
-\title{Generate Text Embeddings using OpenAI API}
+\title{Generate Text Embeddings using OpenAI API (batched)}
 \usage{
-get_embeddings_openai(text, api_key, model = "text-embedding-3-small")
+get_embeddings_openai(
+  text,
+  api_key,
+  model = "text-embedding-3-small",
+  batch_size = 10000L,
+  sleep = 0,
+  progress = TRUE
+)
 }
 \arguments{
 \item{text}{Character vector. One or more texts to be transformed into embeddings.}
@@ -12,6 +19,12 @@ get_embeddings_openai(text, api_key, model = "text-embedding-3-small")
 \item{api_key}{Character. Your OpenAI API key.}
 
 \item{model}{Character. The embedding model to use (Default: 'text-embedding-3-small').}
+
+\item{batch_size}{Integer. Number of texts per request (Default: 10000).}
+
+\item{sleep}{Numeric. Seconds to pause between batches (Default: 0). Useful for rate limits.}
+
+\item{progress}{Logical. Print simple progress messages (Default: TRUE).}
 }
 \value{
 A data frame where each row represents an embedding vector for the corresponding input text.
@@ -19,21 +32,20 @@ A data frame where each row represents an embedding vector for the corresponding
 \description{
 This function generates text embeddings using OpenAI's embedding models.
 It accepts vectors of text and returns embeddings as a data frame.
+For large inputs, it automatically batches requests to avoid token limits.
 }
 \examples{
 \dontrun{
- # Get embeddings for sample texts (requires API key)
  api_key <- "your_openai_api_key_here"
  item_texts <- c("I am outgoing", "I worry a lot", "I like art")
 
  embeddings <- get_embeddings_openai(
    text = item_texts,
    api_key = api_key,
-   model = "text-embedding-3-small"
+   model = "text-embedding-3-small",
+   batch_size = 200
  )
-
- # View the structure of the embeddings
- dim(embeddings)  # Shows number of items and embedding dimensions
+ dim(embeddings)
 }
 
 }

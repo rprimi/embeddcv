@@ -18,42 +18,41 @@ cosim_itens_scales(item_emb, scale_emb, item_text, factor_itens, factor_scale)
 \item{factor_scale}{Character or factor vector. Names of scales (length = number of rows in \code{scale_emb}).}
 }
 \value{
-A data frame with one row per item, containing:
+A list with:
 \describe{
-\item{item_text}{Original text or label for each item.}
-\item{scale}{Factor or group label for each item.}
-\item{\if{html}{\out{<scale columns>}}}{Cosine similarity of each item to each scale.}
-\item{complexity}{Hoffman's Complexity Index for each item's cosine similarity profile.}
-\item{sparsity}{Hoyer's Sparsity Index for each item's similarity profile.}
-\item{within_sd}{Standard deviation of the cosine similarities for each item (row-wise).}
+\item{cosim_mat}{A data frame with one row per item, containing:
+\code{item_text}, \code{scale}, one column per scale with cosine similarities,
+\code{best_target_factor}, \code{second_best_target_factor},
+\code{complexity}, \code{sparsity}, and \code{within_sd}.}
+\item{plot_dist}{A ggplot histogram of all cosine similarity values (pooled across
+scales), with decile reference lines and a density overlay. Use this to benchmark
+the empirical magnitude of cosim coefficients for your embedding model and item set.}
 }
 }
 \description{
 Calculates the cosine similarity between item embeddings and scale embeddings,
-then computes Hoffman’s Complexity Index, Hoyer’s Sparsity Index, and within-row standard deviation
+then computes Hoffman's Complexity Index, Hoyer's Sparsity Index, and within-row standard deviation
 for each item, summarizing how closely each item relates to all scales.
+Also returns a distribution plot of all cosine similarity coefficients as a
+benchmarking utility.
 }
 \details{
 The cosine similarity matrix is computed using \code{text2vec::sim2} (method = "cosine", norm = "l2").
-Hoffman’s Complexity Index quantifies the degree of simple vs. complex structure in each item's profile;
-Hoyer’s Sparsity Index quantifies how close the profile is to being sparse (single dominant value).
+Hoffman's Complexity Index quantifies the degree of simple vs. complex structure in each item's profile;
+Hoyer's Sparsity Index quantifies how close the profile is to being sparse (single dominant value).
 }
 \examples{
 \dontrun{
-# Create sample embeddings for demonstration
-# In practice, these would be generated using get_embeddings()
 set.seed(123)
-item_emb <- matrix(runif(60, -1, 1), nrow = 6, ncol = 10)  # 6 items, 10 dimensions
-scale_emb <- matrix(runif(50, -1, 1), nrow = 5, ncol = 10)  # 5 scales, 10 dimensions
-
-# Sample item texts and factors
-item_text <- c("I am outgoing", "I worry", "I like art", "I help others", "I am organized", "I think deeply")
+item_emb  <- matrix(runif(60, -1, 1), nrow = 6, ncol = 10)
+scale_emb <- matrix(runif(50, -1, 1), nrow = 5, ncol = 10)
+item_text    <- c("I am outgoing", "I worry", "I like art", "I help others", "I am organized", "I think deeply")
 factor_itens <- c("E", "N", "O", "A", "C", "O")
 factor_scale <- c("Openness", "Conscientiousness", "Extraversion", "Agreeableness", "Neuroticism")
 
-# Compute cosine similarities and complexity measures
 result <- cosim_itens_scales(item_emb, scale_emb, item_text, factor_itens, factor_scale)
-head(result)
+head(result$cosim_mat)
+result$plot_dist
 }
 
 }

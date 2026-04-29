@@ -2,45 +2,58 @@
 % Please edit documentation in R/get_embeddings_hf.R
 \name{get_embeddings_hf}
 \alias{get_embeddings_hf}
-\title{Generate Text Embeddings using HuggingFace API}
+\title{Generate Text Embeddings using HuggingFace Inference API}
 \usage{
 get_embeddings_hf(
   text,
   api_key = NULL,
   model = "BAAI/bge-large-en-v1.5",
-  timeout = 30
+  timeout = 30,
+  batch_size = 100L,
+  return_tokens = FALSE
 )
 }
 \arguments{
 \item{text}{Character vector. One or more texts to be transformed into embeddings.}
 
-\item{api_key}{Character. Your HuggingFace API token. If not provided, will try to get from environment variable HF_API_KEY.}
+\item{api_key}{Character. Your HuggingFace API token. If not provided, will try
+to get from environment variable \code{HF_API_KEY}.}
 
-\item{model}{Character. The embedding model to use (default: 'BAAI/bge-large-en-v1.5').}
+\item{model}{Character. The embedding model to use (default: \code{'BAAI/bge-large-en-v1.5'}).}
 
-\item{timeout}{Integer. Number of seconds to wait for a response until giving up. Can not be less than 1 ms.}
+\item{timeout}{Integer. Seconds to wait for a response (default 30).}
+
+\item{batch_size}{Integer. Number of texts per request (default 100).}
+
+\item{return_tokens}{Logical. If \code{FALSE} (default), returns one mean-pooled
+embedding row per input text. If \code{TRUE}, returns one row per token per text,
+with columns \code{text}, \code{token} (integer index — the API does not return
+actual token strings), and one column per embedding dimension. Only applicable
+when the model returns token-level embeddings; sentence-level models are unaffected.}
 }
 \value{
-A data frame where each row represents an embedding vector for the corresponding input text.
+\describe{
+\item{return_tokens = FALSE}{A data frame [n_texts x n_dims] of mean-pooled embeddings.}
+\item{return_tokens = TRUE}{A data frame with columns \code{text}, \code{token}
+(integer position), and \code{dim_1} … \code{dim_N}.}
+}
 }
 \description{
-This function generates text embeddings using HuggingFace's Inference API.
-It accepts vectors of text and returns embeddings as a data frame.
+Generates text embeddings using HuggingFace's Inference API. By default returns
+one mean-pooled embedding per text. Set \code{return_tokens = TRUE} to get
+token-level embeddings instead.
 }
 \examples{
 \dontrun{
- # Get embeddings for sample texts (requires API key)
- api_key <- "your_huggingface_api_token_here"
- item_texts <- c("I am outgoing", "I worry a lot", "I like art")
+ texts <- c("I am outgoing", "I worry a lot", "I like art")
 
- embeddings <- get_embeddings_hf(
-   text = item_texts,
-   api_key = api_key,
-   model = "BAAI/bge-large-en-v1.5"
- )
+ # Sentence embeddings (default)
+ emb <- get_embeddings_hf(texts, api_key = "hf_...")
+ dim(emb)
 
- # View the structure of the embeddings
- dim(embeddings)  # Shows number of items and embedding dimensions
+ # Token-level embeddings
+ tok <- get_embeddings_hf(texts, api_key = "hf_...", return_tokens = TRUE)
+ head(tok[, 1:5])
 }
 
 }

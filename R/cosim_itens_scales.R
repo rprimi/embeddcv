@@ -209,6 +209,8 @@ hoyer_sparsity <- function(x) {
 #' Hoffman's complexity index is defined as:
 #' \deqn{ \frac{(\sum x^2)^2}{\sum x^4} }
 #' This measure captures the spread or dominance of loadings across dimensions.
+#'
+#' @export
 hoffman_complexity <- function(x) {
   sum_sq   <- sum(x^2)
   sum_quad <- sum(x^4)

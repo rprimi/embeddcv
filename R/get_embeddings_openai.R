@@ -29,6 +29,8 @@
 #'  )
 #'  dim(embeddings)
 #' }
+#'
+#' @export
 get_embeddings_openai <- function(text,
                                   api_key,
                                   model = "text-embedding-3-small",

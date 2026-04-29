@@ -28,6 +28,7 @@
 #'  dim(embeddings)  # Shows number of items and embedding dimensions
 #' }
 #'
+#' @export
 get_embeddings_google <- function(text, api_key = NULL, model = "embedding-001") {
 
   # Get API key from environment if not provided

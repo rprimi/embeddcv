@@ -9,71 +9,63 @@ get_embeddings(
   provider = "openai",
   api_key = NULL,
   model = NULL,
-  timeout = 30
+  timeout = 30,
+  batch_size = 10000L,
+  return_tokens = FALSE,
+  python_env = NULL,
+  install_packages = TRUE
 )
 }
 \arguments{
-\item{text}{Character vector. One or more texts to be transformed into embeddings.}
+\item{text}{Character vector. One or more texts to embed.}
 
-\item{provider}{Character. The embedding provider to use: 'openai', 'google', or 'huggingface' (default: 'openai').}
+\item{provider}{Character. One of \code{'openai'}, \code{'google'},
+\code{'huggingface'}, or \code{'huggingface_local'} (default: \code{'openai'}).}
 
-\item{api_key}{Character. Your API key for the chosen provider. If not provided, will try to get from environment variables.}
+\item{api_key}{Character. API key for the chosen provider. If \code{NULL}, reads
+from the relevant environment variable (\code{OPENAI_API_KEY}, \code{GEMINI_API_KEY},
+or \code{HF_API_KEY}). Not used for \code{'huggingface_local'}.}
 
-\item{model}{Character. The embedding model to use. Defaults vary by provider:
+\item{model}{Character. Embedding model to use. Defaults by provider:
 \itemize{
-\item OpenAI: 'text-embedding-3-small'
-\item Google: 'embedding-001'
-\item HuggingFace: 'BAAI/bge-large-en-v1.5'
+\item \code{openai}: \code{'text-embedding-3-small'}
+\item \code{google}: \code{'embedding-001'}
+\item \code{huggingface}: \code{'BAAI/bge-large-en-v1.5'}
+\item \code{huggingface_local}: \code{'dwulff/mpnet-personality'}
 }}
 
-\item{timeout}{Integer. Number of seconds to wait for a response until giving up. Can not be less than 1 ms. Used when provider is 'huggingface'.}
+\item{timeout}{Integer. Seconds to wait for a response (used by HuggingFace providers,
+default 30).}
+
+\item{batch_size}{Integer. Number of texts per API request (default 10000).}
+
+\item{python_env}{Character. Python executable or virtual environment path.
+Only used when \code{provider = 'huggingface_local'}.}
+
+\item{install_packages}{Logical. Whether to auto-install missing Python packages.
+Only used when \code{provider = 'huggingface_local'} (default \code{TRUE}).}
 }
 \value{
-A data frame where each row represents an embedding vector for the corresponding input text.
+A data frame where each row is the embedding vector for the corresponding
+input text.
 }
 \description{
-This function generates text embeddings using OpenAI, Google Gemini, or HuggingFace APIs.
-It accepts vectors of text and returns embeddings as a data frame.
-}
-\details{
-The function automatically determines the appropriate API key environment variable based on the provider:
-\itemize{
-\item OpenAI: OPENAI_API_KEY
-\item Google: GEMINI_API_KEY
-\item HuggingFace: HF_API_KEY
-}
+Generates text embeddings using OpenAI, Google Gemini, HuggingFace Inference API,
+or HuggingFace models running locally via Python.
 }
 \examples{
 \dontrun{
- # Get embeddings using OpenAI (requires API key)
- item_texts <- c("I am outgoing", "I worry a lot", "I like art")
+ texts <- c("I am outgoing", "I worry a lot", "I like art")
 
- # OpenAI embeddings
- embeddings_openai <- get_embeddings(
-   text = item_texts,
-   provider = "openai",
-   api_key = "your_openai_api_key",
-   model = "text-embedding-3-small"
- )
+ # OpenAI
+ get_embeddings(texts, provider = "openai", api_key = "sk-...")
 
- # Google embeddings
- embeddings_google <- get_embeddings(
-   text = item_texts,
-   provider = "google",
-   api_key = "your_google_api_key",
-   model = "embedding-001"
- )
+ # HuggingFace API
+ get_embeddings(texts, provider = "huggingface", api_key = "hf_...")
 
- # HuggingFace embeddings
- embeddings_hf <- get_embeddings(
-   text = item_texts,
-   provider = "huggingface",
-   api_key = "your_hf_api_token",
-   model = "BAAI/bge-large-en-v1.5"
- )
-
- # View the structure of the embeddings
- dim(embeddings_openai)  # Shows number of items and embedding dimensions
+ # HuggingFace local (no API key needed)
+ get_embeddings(texts, provider = "huggingface_local",
+                model = "dwulff/mpnet-personality")
 }
 
 }

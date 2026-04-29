@@ -24,6 +24,7 @@
 #'  cat(Response)
 #' }
 #'
+#' @export
 get_response_hf <- function(prompt = NULL, model = 'google/gemma-2-2b-it',
                             api_key = NULL, max_tokens = 128, temperature = 1) {
   # Get API key from environment if not provided
