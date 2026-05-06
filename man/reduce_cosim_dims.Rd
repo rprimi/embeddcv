@@ -2,12 +2,14 @@
 % Please edit documentation in R/reduce_cosim_dims.R
 \name{reduce_cosim_dims}
 \alias{reduce_cosim_dims}
-\title{Dimensionality Reduction of Item-Scale Cosine Similarities}
+\title{Dimensionality Reduction and Optional Clustering of Item-Scale Cosine Similarities}
 \usage{
 reduce_cosim_dims(
   cosim_mat,
   factor_scale,
   n_dims = 2,
+  n_clusters = NULL,
+  item_factor = NULL,
   tsne_perplexity = 30,
   umap_n_neighbors = 15,
   seed = 42
@@ -19,34 +21,68 @@ reduce_cosim_dims(
 \item{factor_scale}{Character vector. Names of the scale columns to use as
 input features.}
 
-\item{n_dims}{Integer. Number of dimensions to compute (default 2).
-If 3, three-dimensional coordinates are also stored. If > 3, all dimensions
-are stored; \code{plot_cosim_dims()} will always plot the first two.}
+\item{n_dims}{Integer. Number of dimensions to compute (default 2). If 3, 3D
+coordinates are stored. If > 3, all dimensions are stored.}
 
-\item{tsne_perplexity}{Numeric. t-SNE perplexity (default 30). Automatically
-clamped to a valid value for the sample size.}
+\item{n_clusters}{Integer or \code{NULL}. If non-\code{NULL}, runs k-means with
+\code{n_clusters} centres on each method's coordinates and adds the cluster
+assignments to \code{coords} as \code{mds_cluster}, \code{tsne_cluster},
+and \code{umap_cluster}. When \code{n_clusters} is set, EGA is also run on
+the item-item correlation matrix (the number of EGA communities is
+data-driven, not equal to \code{n_clusters}). Congruence among all groupings
+is then returned. Default \code{NULL} (no clustering).}
+
+\item{item_factor}{Character or factor vector of length \code{nrow(cosim_mat)},
+or \code{NULL}. Original/expected factor placement for each item. When
+provided alongside \code{n_clusters}, it is included in the congruence matrix.}
+
+\item{tsne_perplexity}{Numeric. t-SNE perplexity (default 30).}
 
 \item{umap_n_neighbors}{Integer. UMAP number of neighbours (default 15).}
 
 \item{seed}{Integer. Random seed for reproducibility (default 42).}
 }
 \value{
-A data frame with one row per item containing all non-scale columns
-from \code{cosim_mat} (e.g., \code{item_text}, \code{scale},
-\code{best_target_factor}, etc.) plus \code{mds_1}/\code{mds_2}/...,
-\code{tsne_1}/\code{tsne_2}/..., and \code{umap_1}/\code{umap_2}/...
-columns.
+A list with:
+\describe{
+\item{coords}{A data frame with all non-scale columns from \code{cosim_mat}
+plus the MDS/t-SNE/UMAP coordinates. When \code{n_clusters} is set, also
+\code{mds_cluster}, \code{tsne_cluster}, \code{umap_cluster}, and
+\code{ega_cluster} (when EGA succeeds) with method-prefixed labels.}
+\item{congruence}{(only when \code{n_clusters} is set) Square matrix of
+Tucker's congruence between every group across every grouping.}
+\item{ega_loadings}{(only when \code{n_clusters} is set and EGA succeeds)
+A data frame of standardised network loadings per item per EGA community.}
+\item{ega_plot}{(only when \code{n_clusters} is set and EGA succeeds) The
+EGA network plot (a ggplot/patchwork object) showing items as nodes
+coloured by community and edges weighted by partial correlations.}
+}
 }
 \description{
-Runs MDS, t-SNE, and UMAP on the item profiles across scales and returns
-a data frame of coordinates. Use \code{plot_cosim_dims()} to visualize the result.
+Runs MDS, t-SNE, and UMAP on item profiles across scales. Optionally also runs
+k-means clustering on each method's coordinates and Exploratory Graph Analysis
+(EGA) on item-item correlations, then computes Tucker's coefficient of congruence
+between every cluster solution and an optional original item-factor labelling.
+}
+\details{
+EGA (Exploratory Graph Analysis) is run on the item-item correlation matrix
+computed from the cosine similarity profiles across scales. Because the number
+of "observations" for that correlation is the number of scales, results may be
+unstable when \code{length(factor_scale)} is small.
+
+Tucker's congruence between two binary indicator vectors is the cosine
+similarity — 0 (no overlap) to 1 (identical membership).
 }
 \examples{
 \dontrun{
-result  <- cosim_itens_scales(item_emb, scale_emb, item_text, factor_itens, factor_scale)
-coords  <- reduce_cosim_dims(result$cosim_mat, factor_scale)
-plots   <- plot_cosim_dims(coords, colour_by = "scale")
-plots$plot_mds
+result <- cosim_itens_scales(item_emb, scale_emb, item_text, factor_itens, factor_scale)
+
+red <- reduce_cosim_dims(result$cosim_mat, factor_scale,
+                         n_clusters  = 5,
+                         item_factor = result$cosim_mat$scale)
+red$coords           # has *_cluster columns for mds, tsne, umap, ega
+round(red$congruence, 2)
+head(red$ega_loadings)
 }
 
 }

@@ -27,6 +27,7 @@ Imports:
     jsonlite,
     networkD3,
     plotly,
+    psych,
     reticulate,
     purrr,
     Rtsne,
@@ -35,7 +36,8 @@ Imports:
     text2vec,
     tidyr,
     umap
-Suggests: 
+Suggests:
+    EGAnet,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
 Depends: 
