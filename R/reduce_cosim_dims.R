@@ -21,6 +21,12 @@
 #' @param item_factor Character or factor vector of length \code{nrow(cosim_mat)},
 #'   or \code{NULL}. Original/expected factor placement for each item. When
 #'   provided alongside \code{n_clusters}, it is included in the congruence matrix.
+#' @param node_label Character. Name of the column in \code{cosim_mat} to use as
+#'   node labels in the EGA network plot, or a character vector of length
+#'   \code{nrow(cosim_mat)} supplying the labels directly. Default \code{NULL}
+#'   uses the default row identifiers (typically item position numbers).
+#' @param node_label_width Integer. If set, wraps long node labels at this many
+#'   characters by inserting line breaks. Default \code{NULL} (no wrapping).
 #' @param tsne_perplexity Numeric. t-SNE perplexity (default 30).
 #' @param umap_n_neighbors Integer. UMAP number of neighbours (default 15).
 #' @param seed Integer. Random seed for reproducibility (default 42).
@@ -53,17 +59,21 @@
 #' @importFrom umap umap
 #' @importFrom psych dummy.code congruence
 #' @importFrom stats kmeans cor cmdscale dist
+#' @importFrom stringr str_wrap
 #'
 #' @examples
 #' \dontrun{
 #' result <- cosim_itens_scales(item_emb, scale_emb, item_text, factor_itens, factor_scale)
 #'
 #' red <- reduce_cosim_dims(result$cosim_mat, factor_scale,
-#'                          n_clusters  = 5,
-#'                          item_factor = result$cosim_mat$scale)
+#'                          n_clusters       = 5,
+#'                          item_factor      = result$cosim_mat$scale,
+#'                          node_label       = "item_text",
+#'                          node_label_width = 20)
 #' red$coords           # has *_cluster columns for mds, tsne, umap, ega
 #' round(red$congruence, 2)
 #' head(red$ega_loadings)
+#' red$ega_plot         # network plot with wrapped item_text labels
 #' }
 #'
 #' @export
@@ -73,6 +83,8 @@ reduce_cosim_dims <- function(
     n_dims           = 2,
     n_clusters       = NULL,
     item_factor      = NULL,
+    node_label       = NULL,
+    node_label_width = NULL,
     tsne_perplexity  = 30,
     umap_n_neighbors = 15,
     seed             = 42) {
@@ -142,6 +154,30 @@ reduce_cosim_dims <- function(
     # t(X) → [n_scales × n_items]                            (items in columns)
     # cor() correlates columns → item × item correlation matrix
     item_cor <- stats::cor(t(X))
+
+    # Resolve node labels for the EGA network plot
+    if (!is.null(node_label)) {
+      labs <- if (length(node_label) == 1 && node_label %in% names(cosim_mat)) {
+        as.character(cosim_mat[[node_label]])
+      } else if (length(node_label) == nrow(cosim_mat)) {
+        as.character(node_label)
+      } else {
+        warning("`node_label` must be a column name in cosim_mat or a vector of length nrow(cosim_mat); ignoring.")
+        NULL
+      }
+
+      if (!is.null(labs)) {
+        if (!is.null(node_label_width))
+          labs <- stringr::str_wrap(labs, width = node_label_width)
+
+        # Make labels unique (EGA requires unique node ids) by appending a
+        # suffix to duplicates.
+        if (anyDuplicated(labs))
+          labs <- make.unique(labs, sep = "_")
+
+        rownames(item_cor) <- colnames(item_cor) <- labs
+      }
+    }
 
     # Newer EGAnet: pass the correlation matrix via `data`; `corr` is now a
     # string naming the method, not a matrix. EGA detects symmetric input as

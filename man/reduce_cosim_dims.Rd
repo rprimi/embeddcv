@@ -10,6 +10,8 @@ reduce_cosim_dims(
   n_dims = 2,
   n_clusters = NULL,
   item_factor = NULL,
+  node_label = NULL,
+  node_label_width = NULL,
   tsne_perplexity = 30,
   umap_n_neighbors = 15,
   seed = 42
@@ -35,6 +37,14 @@ is then returned. Default \code{NULL} (no clustering).}
 \item{item_factor}{Character or factor vector of length \code{nrow(cosim_mat)},
 or \code{NULL}. Original/expected factor placement for each item. When
 provided alongside \code{n_clusters}, it is included in the congruence matrix.}
+
+\item{node_label}{Character. Name of the column in \code{cosim_mat} to use as
+node labels in the EGA network plot, or a character vector of length
+\code{nrow(cosim_mat)} supplying the labels directly. Default \code{NULL}
+uses the default row identifiers (typically item position numbers).}
+
+\item{node_label_width}{Integer. If set, wraps long node labels at this many
+characters by inserting line breaks. Default \code{NULL} (no wrapping).}
 
 \item{tsne_perplexity}{Numeric. t-SNE perplexity (default 30).}
 
@@ -78,11 +88,14 @@ similarity — 0 (no overlap) to 1 (identical membership).
 result <- cosim_itens_scales(item_emb, scale_emb, item_text, factor_itens, factor_scale)
 
 red <- reduce_cosim_dims(result$cosim_mat, factor_scale,
-                         n_clusters  = 5,
-                         item_factor = result$cosim_mat$scale)
+                         n_clusters       = 5,
+                         item_factor      = result$cosim_mat$scale,
+                         node_label       = "item_text",
+                         node_label_width = 20)
 red$coords           # has *_cluster columns for mds, tsne, umap, ega
 round(red$congruence, 2)
 head(red$ega_loadings)
+red$ega_plot         # network plot with wrapped item_text labels
 }
 
 }
