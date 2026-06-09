@@ -7,6 +7,8 @@
 #' @param text Character vector. One or more texts to be transformed into embeddings.
 #' @param model Character. The sentence-transformers model to use
 #'   (default: \code{'dwulff/mpnet-personality'}).
+#' @param batch_size Integer. Number of texts per encode call (default 10000).
+#'   Lower this if you hit memory issues with large inputs.
 #' @param python_env Character. Path to a Python executable or virtual environment.
 #'   If \code{NULL}, uses the default reticulate environment.
 #' @param install_packages Logical. Whether to automatically install required Python
@@ -18,8 +20,10 @@
 #' @details
 #' Requires the Python packages \code{sentence_transformers} and \code{torch}.
 #' The model is downloaded on first use and cached locally by sentence-transformers.
+#' Loaded models are also cached in-memory for the duration of the R session, so
+#' repeated calls with the same model do not reload it.
 #'
-#' @importFrom reticulate import py_install py_module_available r_to_py py_to_r
+#' @importFrom reticulate import py_install py_module_available py_to_r use_python
 #'
 #' @examples
 #' \dontrun{
@@ -33,8 +37,11 @@
 #' @export
 get_embeddings_hf_local <- function(text,
                                     model            = "dwulff/mpnet-personality",
+                                    batch_size       = 10000L,
                                     python_env       = NULL,
                                     install_packages = TRUE) {
+
+  stopifnot(is.character(text))
 
   if (!is.null(python_env))
     reticulate::use_python(python_env, required = TRUE)
@@ -52,30 +59,78 @@ get_embeddings_hf_local <- function(text,
     }
   }
 
+  # Keep Python objects un-auto-converted so we can call methods like .tolist()
+  # if needed, and use py_to_r() explicitly.
   st <- tryCatch(
-    reticulate::import("sentence_transformers"),
+    reticulate::import("sentence_transformers", convert = FALSE),
     error = function(e) stop("Failed to import sentence_transformers: ", e$message)
   )
 
-  message("Loading model: ", model)
-  message("Note: first-time model loading may take several minutes to download.")
+  # In-memory model cache (per R session) — avoids reloading on each call.
+  model_key <- make.names(model)
+  if (exists(model_key, envir = .hf_local_model_cache, inherits = FALSE)) {
+    model_obj <- get(model_key, envir = .hf_local_model_cache, inherits = FALSE)
+  } else {
+    message("Loading model: ", model)
+    message("Note: first-time model loading may take several minutes to download.")
+    model_obj <- tryCatch(
+      st$SentenceTransformer(model),
+      error = function(e) stop("Failed to load model '", model, "': ", e$message)
+    )
+    assign(model_key, model_obj, envir = .hf_local_model_cache)
+  }
 
-  model_obj <- tryCatch(
-    st$SentenceTransformer(model),
-    error = function(e) stop("Failed to load model '", model, "': ", e$message)
-  )
+  batch_size <- as.integer(batch_size)
+  if (batch_size <= 0) stop("batch_size must be a positive integer.")
 
-  message("Generating embeddings...")
-  embeddings_py <- tryCatch({
-    out <- model_obj$encode(reticulate::r_to_py(text))
-    out$tolist()
-  }, error = function(e) stop("Failed to generate embeddings: ", e$message))
+  idx_batches <- split(seq_along(text), ceiling(seq_along(text) / batch_size))
+  res_list    <- vector("list", length(idx_batches))
 
-  embeddings_df <- as.data.frame(do.call(rbind, reticulate::py_to_r(embeddings_py)))
+  for (b in seq_along(idx_batches)) {
+    idx        <- idx_batches[[b]]
+    text_batch <- text[idx]
 
-  message("Done: ", nrow(embeddings_df), " x ", ncol(embeddings_df), " embedding matrix.")
+    message(sprintf("Generating local HF embeddings batch %d/%d (%d texts)",
+                    b, length(idx_batches), length(text_batch)))
+
+    embeddings_raw <- tryCatch(
+      model_obj$encode(
+        as.list(text_batch),
+        convert_to_numpy  = TRUE,
+        show_progress_bar = FALSE
+      ),
+      error = function(e) stop("Failed to generate embeddings: ", e$message)
+    )
+
+    embeddings <- reticulate::py_to_r(embeddings_raw)
+
+    # py_to_r can return either a matrix (numpy 2D) or a list (numpy 1D per text)
+    if (is.list(embeddings) && is.null(dim(embeddings)))
+      embeddings <- do.call(rbind, embeddings)
+
+    embeddings <- as.matrix(embeddings)
+
+    # Single-text edge case: ensure result is [1 x dims], not [dims x 1]
+    if (length(text_batch) == 1L && nrow(embeddings) != 1L)
+      embeddings <- matrix(embeddings, nrow = 1)
+
+    res_list[[b]] <- embeddings
+  }
+
+  embeddings_matrix <- do.call(rbind, res_list)
+  embeddings_df     <- as.data.frame(embeddings_matrix)
+  names(embeddings_df) <- paste0("V", seq_len(ncol(embeddings_df)))
+
+  message("Done: ", nrow(embeddings_df), " x ",
+          ncol(embeddings_df), " embedding matrix.")
+
   embeddings_df
 }
+
+
+# Per-session cache of loaded SentenceTransformer models.
+# Initialised at package load time.
+.hf_local_model_cache <- new.env(parent = emptyenv())
 
 
 #' Check Local HuggingFace Python Environment

@@ -96,6 +96,7 @@ get_embeddings <- function(text,
     },
     "huggingface_local" = {
       get_embeddings_hf_local(text = text, model = model,
+                              batch_size = batch_size,
                               python_env = python_env,
                               install_packages = install_packages)
     }

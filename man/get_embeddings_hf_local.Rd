@@ -7,6 +7,7 @@
 get_embeddings_hf_local(
   text,
   model = "dwulff/mpnet-personality",
+  batch_size = 10000L,
   python_env = NULL,
   install_packages = TRUE
 )
@@ -16,6 +17,9 @@ get_embeddings_hf_local(
 
 \item{model}{Character. The sentence-transformers model to use
 (default: \code{'dwulff/mpnet-personality'}).}
+
+\item{batch_size}{Integer. Number of texts per encode call (default 10000).
+Lower this if you hit memory issues with large inputs.}
 
 \item{python_env}{Character. Path to a Python executable or virtual environment.
 If \code{NULL}, uses the default reticulate environment.}
@@ -35,6 +39,8 @@ the Inference API, or for offline use.
 \details{
 Requires the Python packages \code{sentence_transformers} and \code{torch}.
 The model is downloaded on first use and cached locally by sentence-transformers.
+Loaded models are also cached in-memory for the duration of the R session, so
+repeated calls with the same model do not reload it.
 }
 \examples{
 \dontrun{
