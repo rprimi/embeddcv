@@ -2,57 +2,158 @@
 % Please edit documentation in R/cosim_itens_scales.R
 \name{cosim_itens_scales}
 \alias{cosim_itens_scales}
-\title{Compute Cosine Similarity Matrix and Complexity Measures between Items and Scales}
+\title{Compute cosine similarities between two embedding sets}
 \usage{
-cosim_itens_scales(item_emb, scale_emb, item_text, factor_itens, factor_scale)
+cosim_itens_scales(
+  item_emb,
+  scale_emb = NULL,
+  item_text = NULL,
+  factor_itens = NULL,
+  factor_scale = NULL,
+  x_labels = NULL,
+  y_labels = NULL,
+  x_group = NULL,
+  y_group = NULL,
+  x_type = "item",
+  y_type = "scale",
+  x_id = NULL,
+  y_id = NULL,
+  drop_self = FALSE,
+  make_plot = TRUE
+)
 }
 \arguments{
-\item{item_emb}{Numeric matrix or data frame. Embedding vectors for items (rows = items, cols = embedding dimensions).}
+\item{item_emb}{Numeric matrix or data frame. This is the row embedding set
+\eqn{X}: one row per unit to be compared (for example items, scales, or
+definitions) and one column per embedding dimension. All columns must be
+numeric. Row names are used as default row ids when \code{x_id = NULL}.}
 
-\item{scale_emb}{Numeric matrix or data frame. Embedding vectors for scales (rows = scales, cols = embedding dimensions).}
+\item{scale_emb}{Optional numeric matrix or data frame. This is the column
+embedding set \eqn{Y}: one row per comparison target and the same number of
+embedding dimensions as \code{item_emb}. If \code{NULL}, \code{item_emb} is compared with
+itself, producing a symmetric within-set similarity matrix.}
 
-\item{item_text}{Character vector. Textual content or labels for each item (length = number of rows in \code{item_emb}).}
+\item{item_text}{Optional character vector of length \code{nrow(item_emb)}.
+Legacy row labels/texts used by older item-scale workflows. For new code,
+prefer \code{x_labels}.}
 
-\item{factor_itens}{Character or factor vector. Factor or group label for each item (length = number of rows in \code{item_emb}).}
+\item{factor_itens}{Optional character or factor vector of length
+\code{nrow(item_emb)}. Legacy row grouping variable, often the item scale or
+factor. For new code, prefer \code{x_group}.}
 
-\item{factor_scale}{Character or factor vector. Names of scales (length = number of rows in \code{scale_emb}).}
+\item{factor_scale}{Optional character or factor vector of length
+\code{nrow(scale_emb)} when \code{scale_emb} is supplied, otherwise length
+\code{nrow(item_emb)}. Legacy target labels/groups. For new code, prefer
+\code{y_labels} and \code{y_group}.}
+
+\item{x_labels}{Optional character vector of length \code{nrow(item_emb)}.
+Human-readable labels for rows in the long output. Defaults, in order, to
+\code{item_text}, row names of \code{item_emb}, or generated ids.}
+
+\item{y_labels}{Optional character vector of length \code{nrow(scale_emb)} (or
+\code{nrow(item_emb)} in symmetric comparisons). Human-readable labels for
+targets in the long output. Defaults, in order, to \code{factor_scale}, row
+names of \code{scale_emb}, or generated ids.}
+
+\item{x_group}{Optional character or factor vector of length \code{nrow(item_emb)}.
+Group labels for rows, such as instrument, domain, or scale. Defaults to
+\code{factor_itens} when supplied.}
+
+\item{y_group}{Optional character or factor vector of length \code{nrow(scale_emb)}
+(or \code{nrow(item_emb)} in symmetric comparisons). Group labels for targets,
+such as instrument, domain, or scale. Defaults to \code{factor_scale} when
+supplied.}
+
+\item{x_type, y_type}{Length-one character labels describing the row and
+column embedding sets, for example \code{"item"}, \code{"scale"}, or \code{"definition"}.
+These labels are copied into \code{cosim_long$x_type} and \code{cosim_long$y_type}
+and are also used when generated ids are needed.}
+
+\item{x_id, y_id}{Optional stable ids for rows and columns. \code{x_id} must have
+length \code{nrow(item_emb)}. \code{y_id} must have length \code{nrow(scale_emb)}, or
+\code{nrow(item_emb)} in symmetric comparisons. Defaults to row names or
+generated ids, then duplicated ids are made unique.}
+
+\item{drop_self}{Logical scalar. If \code{TRUE} and the comparison is symmetric
+(\code{scale_emb = NULL}, or row and column ids are identical), diagonal
+self-similarities are set to \code{NA}.}
+
+\item{make_plot}{Logical scalar. If \code{TRUE}, \code{plot_dist} contains a ggplot
+histogram/density plot of the finite cosine coefficients; if \code{FALSE},
+\code{plot_dist} is \code{NULL}.}
 }
 \value{
 A list with:
 \describe{
-\item{cosim_mat}{A data frame with one row per item, containing:
-\code{item_text}, \code{scale}, one column per scale with cosine similarities,
-\code{best_target_factor}, \code{second_best_target_factor},
-\code{complexity}, \code{sparsity}, and \code{within_sd}.}
-\item{plot_dist}{A ggplot histogram of all cosine similarity values (pooled across
-scales), with decile reference lines and a density overlay. Use this to benchmark
-the empirical magnitude of cosim coefficients for your embedding model and item set.}
+\item{cosim_mat}{Wide data frame. It starts with \code{item_text} and \code{scale}
+for backwards compatibility, followed by one cosine column per target.}
+\item{cosim_long}{Long pair table with row/column ids, labels, groups,
+types, and \code{cosim}.}
+\item{cosim_matrix}{Raw numeric cosine similarity matrix.}
+\item{plot_dist}{A ggplot distribution plot, or \code{NULL} when
+\code{make_plot = FALSE}.}
 }
 }
 \description{
-Calculates the cosine similarity between item embeddings and scale embeddings,
-then computes Hoffman's Complexity Index, Hoyer's Sparsity Index, and within-row standard deviation
-for each item, summarizing how closely each item relates to all scales.
-Also returns a distribution plot of all cosine similarity coefficients as a
-benchmarking utility.
+Computes cosine similarities for any pair of embedding matrices, such as
+item-item, item-scale, item-definition, scale-scale, scale-definition, or
+definition-definition. The function keeps the original item-scale interface
+for backwards compatibility, but now also returns a long pair table and the
+raw cosine matrix for downstream semantic taxonomic analyses.
 }
 \details{
-The cosine similarity matrix is computed using \code{text2vec::sim2} (method = "cosine", norm = "l2").
-Hoffman's Complexity Index quantifies the degree of simple vs. complex structure in each item's profile;
-Hoyer's Sparsity Index quantifies how close the profile is to being sparse (single dominant value).
+The cosine similarity matrix is computed with \code{text2vec::sim2(method = "cosine", norm = "l2")}. For row embedding \eqn{x_i} and target embedding
+\eqn{y_j}, the cosine similarity is
+
+\deqn{\cos(x_i, y_j) =
+\frac{x_i^\top y_j}{\|x_i\|_2 \|y_j\|_2}.}
+
+The function also summarizes each row's similarity profile across all
+targets:
+\describe{
+\item{\code{best_target_factor}, \code{second_best_target_factor}}{labels of the two
+most similar targets.}
+\item{\code{best_target_id}, \code{second_best_target_id}}{ids of the two most
+similar targets.}
+\item{\code{complexity}}{Hoffman's complexity index,
+\eqn{(\sum_j z_j^2)^2 / \sum_j z_j^4}, computed over the row profile
+\eqn{z}. Larger values indicate a more diffuse profile across targets.}
+\item{\code{sparsity}}{Hoyer's sparsity,
+\eqn{(\sqrt{p} - \|z\|_1 / \|z\|_2) / (\sqrt{p} - 1)}, where \eqn{p} is
+the number of finite target similarities. Values closer to 1 indicate a
+more concentrated profile.}
+\item{\code{within_sd}}{standard deviation of the row's target similarities.}
+}
+
+The legacy arguments \code{item_text}, \code{factor_itens}, and \code{factor_scale} are kept
+so older item-scale scripts continue to work. For new analyses, prefer the
+more general \code{x_labels}, \code{y_labels}, \code{x_group}, \code{y_group}, \code{x_type}, and
+\code{y_type} arguments.
 }
 \examples{
 \dontrun{
 set.seed(123)
 item_emb  <- matrix(runif(60, -1, 1), nrow = 6, ncol = 10)
 scale_emb <- matrix(runif(50, -1, 1), nrow = 5, ncol = 10)
-item_text    <- c("I am outgoing", "I worry", "I like art", "I help others", "I am organized", "I think deeply")
-factor_itens <- c("E", "N", "O", "A", "C", "O")
-factor_scale <- c("Openness", "Conscientiousness", "Extraversion", "Agreeableness", "Neuroticism")
 
-result <- cosim_itens_scales(item_emb, scale_emb, item_text, factor_itens, factor_scale)
-head(result$cosim_mat)
-result$plot_dist
+out <- cosim_itens_scales(
+  item_emb = item_emb,
+  scale_emb = scale_emb,
+  item_text = paste("item", 1:6),
+  factor_itens = c("E", "N", "O", "A", "C", "O"),
+  factor_scale = c("O", "C", "E", "A", "N")
+)
+
+out$cosim_mat
+out$cosim_long
+
+# Symmetric scale-scale similarity
+ss <- cosim_itens_scales(
+  item_emb = scale_emb,
+  x_type = "scale",
+  y_type = "scale",
+  drop_self = TRUE
+)
 }
 
 }

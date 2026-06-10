@@ -3,20 +3,8 @@
 \docType{data}
 \name{item_dic_facetmap}
 \alias{item_dic_facetmap}
-\title{BFI-2 Items Dictionary}
+\title{Facetmap Items Dictionary}
 \format{
-A data frame with 63 rows and 8 variables:
-\describe{
-\item{coditem}{Character. Item code (e.g., "bfi2_5")}
-\item{item_pt_text}{Character. Item text in Portuguese}
-\item{item_en_text}{Character. Item text in English}
-\item{domain}{Factor. Big Five domain (O, C, E, A, N)}
-\item{facet}{Character. Facet within domain (e.g., "aes" for aesthetics)}
-\item{pole}{Numeric. Item polarity (0 = negative, 1 = positive)}
-\item{seman_pairs}{Numeric. Semantic pair grouping}
-\item{domain_facet}{Character. Combined domain and facet label (e.g., "O_aes")}
-}
-
 A data frame with 389 rows and 8 variables:
 \describe{
 \item{item_number}{Integer. Sequential item number}
@@ -30,19 +18,12 @@ A data frame with 389 rows and 8 variables:
 }
 }
 \source{
-Big Five Inventory-2 (BFI-2) psychological assessment
-
 Facetmap psychological assessment mapping
 }
 \usage{
 item_dic_facetmap
-
-item_dic_facetmap
 }
 \description{
-A dataset containing the Big Five Inventory-2 (BFI-2) items in Portuguese and English,
-along with their domain and facet classifications.
-
 A dataset containing items from various psychological facets mapped to Big Five domains,
 including absorption, creativity, and other personality facets.
 }

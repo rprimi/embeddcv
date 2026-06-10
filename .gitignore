@@ -13,3 +13,7 @@ data/bfi_item_embeddings.RDS
 data/facetmap_item_embeddings.RDS
 .positai
 .claude/
+vignettes/*.html
+vignettes/*.R
+/doc/
+/Meta/

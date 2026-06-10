@@ -7,16 +7,22 @@
 hoffman_complexity(x)
 }
 \arguments{
-\item{x}{A numeric vector.}
+\item{x}{Numeric vector.}
 }
 \value{
-A numeric value representing the complexity. Returns \code{NA} if the sum of the fourth powers is zero to avoid division by zero.
+Numeric complexity value. Returns \code{NA} if the fourth-power sum is
+zero.
 }
 \description{
-Computes Hoffman's complexity index for a numeric vector, often used for factor loadings or correlation patterns.
+Computes Hoffman's complexity index for a numeric vector, often used for
+factor loadings or correlation patterns.
 }
 \details{
-Hoffman's complexity index is defined as:
-\deqn{ \frac{(\sum x^2)^2}{\sum x^4} }
-This measure captures the spread or dominance of loadings across dimensions.
+For a finite vector \eqn{x}, Hoffman's complexity index is
+
+\deqn{\frac{(\sum_i x_i^2)^2}{\sum_i x_i^4}.}
+
+Values near 1 indicate that one element dominates the profile. Larger values
+indicate that the profile is spread across more elements. Non-finite values
+are removed before the calculation.
 }

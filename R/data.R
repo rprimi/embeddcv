@@ -15,7 +15,7 @@
 #'   \item{domain_facet}{Character. Combined domain and facet label (e.g., "O_aes")}
 #' }
 #' @source Big Five Inventory-2 (BFI-2) psychological assessment
-"item_dic_facetmap"
+"item_dic_bfi2"
 
 #' Facetmap Items Dictionary
 #'

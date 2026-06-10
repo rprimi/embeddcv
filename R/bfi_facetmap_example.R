@@ -85,8 +85,8 @@ bfi_facetmap_example <- function() {
     item_text = bfi_items,
     factor_itens = bfi_facets,
     factor_scale = domain_scale_names
-  )
-  
+  )$cosim_mat
+
   cat("Similarity matrix computed. Summary statistics:\n")
   similarity_cols <- domain_scale_names
   print(summary(cosim_results[, similarity_cols]))

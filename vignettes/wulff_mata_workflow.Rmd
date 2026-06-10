@@ -1,0 +1,336 @@
+---
+title: "Semantic Taxonomic Analysis of Psychological Scales (Wulff & Mata, 2025)"
+author: "Ricardo Primi and Leonardo Mose"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Semantic Taxonomic Analysis of Psychological Scales (Wulff & Mata, 2025)}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+## Overview
+
+This vignette demonstrates the semantic taxonomic analyses introduced in
+Wulff & Mata (2025), *Escaping the jingle-jangle jungle: increasing conceptual
+clarity in psychology using large language models*, as implemented in
+**embeddcv**. The workflow asks three questions about a collection of
+psychological scales and their construct definitions:
+
+1. **Validation** — do item embeddings recover the intended scale structure
+   (*structural fidelity*), do scale embeddings align with their assigned
+   definitions (*scale-label alignment*), and how internally consistent is each
+   scale semantically (*semantic alpha*)?
+2. **Jingle-jangle detection** — which scale pairs have similar labels but
+   dissimilar content (*jingle fallacies*), and which have similar content but
+   dissimilar labels (*jangle fallacies*)?
+3. **Relabeling** — can a data-driven clustering of scale embeddings, combined
+   with optimal label assignment, produce a taxonomy with fewer fallacies than
+   the original one?
+
+The first part of this vignette runs a small simulated example so all functions
+can be executed quickly. The second part documents the full B5/PD pipeline used
+with real instrument data.
+
+```{r setup, message = FALSE, warning = FALSE}
+library(embeddcv)
+library(dplyr)
+library(ggplot2)
+
+set.seed(42)
+```
+
+## Part 1: A small simulated example
+
+We simulate embeddings for items belonging to five Big Five constructs, each
+measured by two instruments ("bfi" and "ipip"). Items from the same construct
+share a common center in embedding space.
+
+```{r simulate}
+n_dim <- 50
+constructs <- c("openness", "conscientiousness", "extraversion",
+                "agreeableness", "neuroticism")
+centers <- matrix(rnorm(5 * n_dim), 5, n_dim)
+
+make_emb <- function(n, center) center + matrix(rnorm(n * n_dim, sd = .35), n, n_dim)
+
+# 8 items per construct (4 per instrument)
+item_emb <- do.call(rbind, lapply(1:5, function(i) make_emb(8, centers[i, ])))
+rownames(item_emb) <- paste0("it_", rep(constructs, each = 8), "_", 1:8)
+item_scale_id <- paste0(rep(c("bfi", "ipip"), 20), "_", rep(constructs, each = 8))
+
+# Definition/label embeddings: one definition per scale
+label_emb <- do.call(rbind, lapply(1:5, function(i) make_emb(2, centers[i, ])))
+rownames(label_emb) <- paste0(rep(c("bfi", "ipip"), times = 5),
+                              "_", rep(constructs, each = 2))
+```
+
+### Scale embeddings and similarity matrices
+
+`get_scale_embeddings()` averages item embeddings into one vector per scale.
+`cosine_matrix()` computes within-set similarities, and `rescale_similarity()`
+applies the min-max rescaling used by Wulff & Mata before clustering.
+
+```{r matrices}
+scale_emb <- get_scale_embeddings(item_emb, item_scale_id)
+
+scale_cos_raw <- cosine_matrix(scale_emb)
+scale_cos     <- rescale_similarity(scale_cos_raw)
+label_cos     <- cosine_matrix(label_emb)
+
+# Original taxonomy: each scale keeps its own definition
+label_by_scale <- setNames(rownames(scale_emb), rownames(scale_emb))
+label_by_scale <- label_by_scale[rownames(scale_cos)]
+
+round(scale_cos_raw[1:4, 1:4], 2)
+```
+
+### All pairwise comparisons at once
+
+`cosim_all_pairs()` wraps the generalized `cosim_itens_scales()` to produce
+item-item, item-scale, item-definition, scale-scale, scale-definition, and
+definition-definition similarities in one call.
+
+```{r all-pairs}
+sims <- cosim_all_pairs(
+  embeddings = list(item = item_emb, scale = scale_emb, definition = label_emb),
+  make_plot = FALSE
+)
+names(sims)
+head(sims$scale_definition$cosim_long)
+```
+
+### Validation: semantic alpha and structural fidelity
+
+```{r validation}
+item_cos <- cosine_matrix(item_emb)
+
+semantic_alpha_tbl <- semantic_alpha(
+  item_cos = item_cos,
+  scale_id = item_scale_id,
+  model_names = "toy"
+)
+semantic_alpha_tbl
+
+structural_fidelity_tbl <- structural_fidelity(
+  item_cos = item_cos,
+  scale_id = item_scale_id,
+  inventory = sub("_.*", "", item_scale_id),
+  model_names = "toy"
+)
+structural_fidelity_tbl
+```
+
+```{r fidelity-plot, fig.height = 4}
+plot_structural_fidelity(structural_fidelity_tbl, show_legend = FALSE)
+```
+
+### Jingle-jangle detection
+
+`jingle_jangle_pairs()` builds a pair-level table combining scale and label
+similarities; `jingle_jangle_thresholds()` computes the Wulff & Mata cutoff
+rule (low = 1 - 1/5, high = 1 - 1/100); `classify_jingle_jangle()` flags each
+pair.
+
+```{r jingle-jangle}
+jj_base <- jingle_jangle_pairs(
+  scale_cos = scale_cos,
+  label_cos = label_cos,
+  label_by_scale = label_by_scale
+)
+
+thresholds <- jingle_jangle_thresholds(scale_cos = scale_cos, label_cos = label_cos)
+thresholds
+
+jj <- classify_jingle_jangle(jj_base, thresholds, verbose = FALSE)
+count(jj, type)
+```
+
+```{r jj-scatter, fig.height = 5.5}
+plot_jingle_jangle_scatter(pair_table = jj, thresholds = thresholds)
+```
+
+### Relabeling: clustering + optimal label assignment
+
+`make_relabeling_clustering_solutions()` generates candidate taxonomies
+(hierarchical, k-means, and optionally Mclust/Louvain).
+`score_relabeling_solutions()` assigns the best label to each cluster via
+bipartite matching on the scale-definition similarity matrix and counts the
+fallacies of each candidate. `select_relabeling_solutions()` applies the
+parsimonious/optimal selection rule.
+
+```{r relabeling}
+scale_label_cross <- cosim_itens_scales(
+  item_emb = scale_emb,
+  scale_emb = label_emb,
+  x_type = "scale",
+  y_type = "definition",
+  make_plot = FALSE
+)$cosim_matrix
+
+solutions <- make_relabeling_clustering_solutions(
+  scale_cos = scale_cos,
+  k_seq = 2:6,
+  include_mclust = FALSE,
+  include_louvain = FALSE,
+  seed = 1
+)
+
+scored <- score_relabeling_solutions(
+  clustering_solutions = solutions,
+  scale_label_cross = scale_label_cross,
+  scale_cos = scale_cos,
+  label_cos = label_cos,
+  thresholds = thresholds
+)
+
+select_relabeling_solutions(labels_scored = scored, max_constructs = 10)
+```
+
+The original taxonomy can be scored the same way, providing the baseline that
+relabeling tries to improve:
+
+```{r original-score}
+score_label_solution(
+  solution = label_by_scale,
+  scale_cos = scale_cos,
+  label_cos = label_cos,
+  thresholds = thresholds
+)
+```
+
+## Part 2: The full B5/PD pipeline
+
+The complete analysis of Big Five and personality-disorder instruments uses
+saved item and definition embeddings (`dados.RData`, ~33 MB, not shipped with
+the package; contact the authors). The code below condenses the full pipeline
+script `b5_pd_wulff_mata_embeddcv.R`; it is shown but not evaluated.
+
+```{r full-pipeline, eval = FALSE}
+load("dados.RData")   # itens, definicoes, item_embedd, definicoes_embedd
+
+# 1. Prepare matrices -------------------------------------------------------
+item_emb <- as.matrix(item_embedd)
+rownames(item_emb) <- make.unique(as.character(itens$cod_item))
+
+# Harmonize scale ids between the item table and the definition table,
+# then group item embeddings into scale embeddings.
+item_scale_id <- itens$scale   # after the id-harmonization steps
+scale_emb <- get_scale_embeddings(item_emb, item_scale_id)
+
+label_emb <- as.matrix(definicoes_embedd)
+rownames(label_emb) <- definicoes$scale
+label_by_scale <- setNames(definicoes$scale, definicoes$scale)
+
+# 2. Similarity matrices ----------------------------------------------------
+scale_cos_raw <- cosine_matrix(scale_emb)
+scale_cos     <- rescale_similarity(scale_cos_raw)
+label_cos     <- cosine_matrix(label_emb)
+
+scale_label_cross <- cosim_itens_scales(
+  item_emb = scale_emb, scale_emb = label_emb,
+  x_type = "scale", y_type = "definition", make_plot = FALSE
+)$cosim_matrix
+
+# Diagnostic distributions for every embedding-level comparison
+sims <- cosim_all_pairs(
+  embeddings = list(item = item_emb, scale = scale_emb, definition = label_emb),
+  make_plot = FALSE
+)
+plot_similarity_distribution(
+  similarities = sims$scale_scale$cosim_long,
+  title = "Scale-scale cosine similarity distribution",
+  show_quartiles = TRUE
+)
+
+# 3. Validation -------------------------------------------------------------
+item_cos <- cosine_matrix(item_emb)
+
+semantic_alpha_tbl <- semantic_alpha(item_cos, item_scale_id, model_names = "B5")
+
+structural_fidelity_tbl <- structural_fidelity(
+  item_cos = item_cos,
+  scale_id = item_scale_id,
+  inventory = itens$instrumento,
+  model_names = "B5"
+)
+plot_structural_fidelity(structural_fidelity_tbl,
+                         output_file = "01A_structural_fidelity.png")
+
+scale_label_alignment_tbl <- scale_label_alignment(
+  scale_emb = scale_emb,
+  label_embeddings = list(B5 = label_emb),
+  label_by_scale = label_by_scale[rownames(scale_emb)]
+)
+plot_scale_label_alignment(scale_label_alignment_tbl)
+
+convergent_validity_tbl <- convergent_validity(
+  scale_cos = scale_cos_raw,
+  construct_by_scale = scale_label_from_scale(label_by_scale[rownames(scale_cos_raw)]),
+  min_scales_per_construct = 3
+)
+plot_convergent_validity(convergent_validity_tbl)
+
+# 4. Jingle-jangle ----------------------------------------------------------
+jj_base    <- jingle_jangle_pairs(scale_cos, label_cos, label_by_scale)
+thresholds <- jingle_jangle_thresholds(scale_cos, label_cos,
+                                       min_constructs = 5, max_constructs = 100)
+jj         <- classify_jingle_jangle(jj_base, thresholds)
+
+plot_jingle_jangle_scatter(jj, thresholds, output_file = "02A_scatter.png")
+plot_jingle_jangle(jj, thresholds, output_file = "03_jingle_jangle.png")
+
+# Sensitivity of fallacy counts to the cutoff rule
+grid <- jingle_jangle_threshold_grid(jj_base, scale_cos, label_cos,
+                                     lows = 1:10, highs = seq(50, 250, 20))
+plot_jingle_jangle_cutoffs(grid, output_file = "S01_cutoffs.png")
+
+# 5. Relabeling -------------------------------------------------------------
+original_solution <- label_by_scale[rownames(scale_cos)]
+original_score <- score_label_solution(original_solution, scale_cos, label_cos,
+                                       thresholds)
+
+solutions <- make_relabeling_clustering_solutions(
+  scale_cos = scale_cos,
+  k_seq = seq_len(min(nrow(scale_cos), nrow(label_cos))),
+  include_mclust = TRUE,
+  include_louvain = TRUE,
+  seed = 42
+)
+
+scored <- score_relabeling_solutions(solutions, scale_label_cross,
+                                     scale_cos, label_cos, thresholds)
+
+selection <- select_relabeling_solutions(scored, max_constructs = 100)
+
+# 6. Figures ----------------------------------------------------------------
+panels <- prepare_relabeling_panels(
+  labels_scored = scored,
+  scale_label_cross = scale_label_cross,
+  label_by_scale = label_by_scale,
+  max_constructs = 100,
+  palette = "magma"
+)
+plot_relabeling_figure(panels, output_file = "04_relabeling.png",
+                       max_constructs = 100, palette = "magma")
+plot_relabeling_robustness(scored,
+                           original_fallacy_sum = original_score["fallacy_sum"],
+                           output_file = "S02_robustness.png")
+```
+
+## References
+
+- Wulff, D. U., & Mata, R. (2025). Escaping the jingle-jangle jungle:
+  increasing conceptual clarity in psychology using large language models.
+  *Nature Human Behaviour*. doi:10.1038/s41562-024-02089-y
+- Hommel, B. E., & Arslan, R. C. (2024). Language models accurately infer
+  correlations between psychological items and scales from text alone.
+  doi:10.31234/osf.io/kjuce

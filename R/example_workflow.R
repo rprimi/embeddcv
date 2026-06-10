@@ -70,8 +70,8 @@ example_workflow <- function() {
     item_text = item_texts,
     factor_itens = item_factors,
     factor_scale = scale_factors
-  )
-  
+  )$cosim_mat
+
   cat("Results summary:\n")
   print(summary(cosim_results[, scale_factors]))
   cat("Mean complexity:", mean(cosim_results$complexity), "\n")

@@ -6,3 +6,8 @@
 ^LICENSE\.md$ 
 ^\.positai$
 ^\.claude$
+^prototype$
+^rev_bib$
+^AGENTS\.md$
+^doc$
+^Meta$
