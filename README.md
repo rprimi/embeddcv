@@ -243,7 +243,7 @@ If you use `embeddcv` in your research, please cite:
 ```bibtex
 @software{embeddcv2025,
   title = {embeddcv: Analyzing Psychological Scales with Embeddings},
-  author = {Primi, R., Franco, V. R., Nunes, C. H., Cainã, A. & Mose, L.},
+  author = {Primi, R., Franco, V. R., Mose, L. Nunes, C. H., & Cainã, A.},
   year = {2025},
   url = {https://github.com/rprimi/embeddcv}
 }
@@ -256,7 +256,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📧 Contact
 
-- **Authors**: R. Primi, V. R. Franco, C. H. Nunes, A. Cainã, L. Mose
+- **Authors**: R. Primi, V. R. Franco, L. Mose, C. H. Nunes, & A. Cainã 
 - **Repository**: [GitHub](https://github.com/rprimi/embeddcv)
 - **Issues**: [Report a bug](https://github.com/rprimi/embeddcv/issues)
 
