@@ -2,7 +2,15 @@
 
 ## 📊 embeddcv: Analyzing Psychological Scales with Embeddings and Cosine Similarity
 
-**embeddcv** is an R package that leverages modern embedding techniques to analyze psychological scales and their relationships. It provides a comprehensive toolkit for generating text embeddings, computing cosine similarities between items and scales, and visualizing complex relationships through interactive diagrams.
+**embeddcv** is an R package that leverages modern embedding techniques to analyze psychological scales and their relationships.
+It provides a comprehensive toolkit for generating text embeddings, computing cosine similarities between items and scales, 
+and visualizing complex relationships through interactive diagrams. This package also implements the jingle-jangle detection method introduced by Wulff & Mata (2025), 
+providing a convenient wrapper around the functions open-sourced by the authors. The method uses large language model embeddings 
+to identify jingle fallacies (identical labels referring to different constructs) and jangle fallacies (different labels referring to the same construct),
+helping increase conceptual clarity in psychological measurement.
+
+Reference: Wulff, D. U., & Mata, R. (2025). Escaping the jingle-jangle jungle: Increasing conceptual clarity in psychology using large language models. Nature Human Behaviour, 9, 583–593. https://doi.org/10.1038/s41562-024-02089-y)
+
 
 ## ✨ Features
 
@@ -11,8 +19,7 @@
 - 📊 **Complexity Measures**: Analyze item-factor relationships using various complexity metrics
 - 🎯 **Factor Matching**: Identify best-matching scales for psychological items
 - 📈 **Interactive Visualizations**: Create Sankey diagrams for exploring similarity patterns
-
-## 📦 Installation
+- 📄 **jingle–jangle detection**: Wraps the open-source code from Wulff & Mata (2025) for jingle-jangle analysis and visualization.
 
 ### Development Version
 
@@ -28,13 +35,10 @@ remotes::install_github("rprimi/embeddcv")
 
 ### Dependencies
 
-The package requires the following R packages:
-- `dplyr` (>= 1.0.0)
-- `httr` (>= 1.4.0)
-- `jsonlite` (>= 1.7.0)
-- `networkD3` (>= 0.4)
-- `purrr` (>= 0.3.0)
-- `text2vec` (>= 0.6.0)
+The main R packages used are `text2vec`, `dplyr`, `tidyr`, `ggplot2`, `httr`,
+`jsonlite`, `networkD3`, `plotly`, `psych`, and `reticulate` (for local
+HuggingFace models). See the `DESCRIPTION` file for the complete list —
+all are installed automatically by `remotes::install_github()`.
 
 ## 🚀 Quick Start
 
@@ -86,7 +90,11 @@ embeddings <- get_embeddings(
 ```
 
 ### 2. `cosim_itens_scales()`
-Compute cosine similarity matrix and complexity measures.
+Compute cosine similarity matrix and complexity measures. Returns a list:
+`$cosim_mat` (wide data frame with one cosine column per scale plus
+complexity/sparsity measures), `$cosim_long` (long pair table),
+`$cosim_matrix` (raw cosine matrix), and `$plot_dist` (distribution plot of
+the coefficients, useful for benchmarking their empirical magnitude).
 
 ```r
 cosim_results <- cosim_itens_scales(
@@ -96,6 +104,9 @@ cosim_results <- cosim_itens_scales(
   factor_itens = item_factors,
   factor_scale = scale_factors
 )
+
+cosim_results$cosim_mat   # item x scale similarities + summary measures
+cosim_results$plot_dist   # distribution of all cosine coefficients
 ```
 
 ### 3. `mean_cosim_by_item_factors()`
@@ -164,21 +175,21 @@ facetmap_scale_embeddings <- data.frame(
 )
 
 # Step 4: Calculate cosine similarities
+scale_names <- facetmap_scale_embeddings$domain_facet
+
 cosim_results <- cosim_itens_scales(
   item_emb = bfi_embeddings,
   scale_emb = facetmap_scale_embeddings[, -1],
   item_text = item_dic_bfi2$item_en_text,
   factor_itens = item_dic_bfi2$domain_facet,
-  factor_scale = facetmap_scale_embeddings$domain_facet
-)
+  factor_scale = scale_names
+)$cosim_mat
 
 # Step 5: Analyze relationships
-keepCosim <- grep("item_text|scale|complexity|sparsity|within_sd", 
-                  colnames(cosim_results))
 summary_results <- mean_cosim_by_item_factors(
-  cosim_mat = cosim_results[, -keepCosim],
+  cosim_mat = as.matrix(cosim_results[, scale_names]),
   item_factor = cosim_results$scale,
-  target_factor = names(cosim_results[, -keepCosim])
+  target_factor = scale_names
 )
 
 # Step 6: Visualize with Sankey diagram
@@ -195,7 +206,7 @@ Store your API keys as environment variables for security:
 # Add to your .Renviron file
 OPENAI_API_KEY=your_openai_key_here
 GEMINI_API_KEY=your_google_key_here
-HF_API_TOKEN=your_huggingface_token_here
+HF_API_KEY=your_huggingface_token_here
 
 # Or set temporarily in R session
 Sys.setenv(OPENAI_API_KEY = "your_key_here")
@@ -215,7 +226,6 @@ The package includes two example datasets:
 
 - **`item_dic_bfi2`**: BFI-2 personality inventory items with English text and factor mappings
 - **`item_dic_facetmap`**: Facetmap scale items with 70 personality facets
-()
 
 ```r
 # Explore the datasets
@@ -233,7 +243,7 @@ If you use `embeddcv` in your research, please cite:
 ```bibtex
 @software{embeddcv2025,
   title = {embeddcv: Analyzing Psychological Scales with Embeddings},
-  author = {Primi, R. & Franco, V. R., Nunes, C. H. & Cainã, A.},
+  author = {Primi, R., Franco, V. R., Nunes, C. H., Cainã, A. & Mose, L.},
   year = {2025},
   url = {https://github.com/rprimi/embeddcv}
 }
@@ -246,7 +256,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📧 Contact
 
-- **Author**: R. Primi, V. R. Franco, Nunes, C. H, Cainã, A.
+- **Authors**: R. Primi, V. R. Franco, C. H. Nunes, A. Cainã, L. Mose
 - **Repository**: [GitHub](https://github.com/rprimi/embeddcv)
 - **Issues**: [Report a bug](https://github.com/rprimi/embeddcv/issues)
 

@@ -4,19 +4,19 @@ Version: 0.2.0
 Authors@R: c(person("Ricardo", "Primi",
                     email = "rprimi@mac.com",
                     role = c("aut", "cre")),
+              person("Vithor", "Franco",
+                    email = "vithorfranco@gmail.com",
+                    role = "aut"),
+             person("Leonardo", "Mose",
+                     email = leonardo.mose@outlook.com,
+                    role = "aut"),
              person("Carlos", "Nunes",
                     email = "carloshnunes@me.com",
                     role = "ctb"),
              person("Araê", "Cainâ",
                     email = "arae@zanity.com.br",
-                    role = "aut"),
-             person("Vithor", "Franco",
-                    email = "vithorfranco@gmail.com",
-                    role = "aut"),
-             person("Leonardo", "Mose",
-                    role = "aut",
-                    comment = c("Postdoctoral researcher in Psychology, Universidade Sao Francisco (USF)",
-                                "Google Scholar: https://scholar.google.com/citations?user=Mv4h7MYAAAAJ")))
+                    role = "aut")
+            
 Description: Tools for analyzing psychological scales using embeddings and cosine similarity. The package provides functions to generate embeddings from text, compute cosine similarities between items and scales, and analyze the relationships between items and factors using various complexity measures. Includes semantic taxonomic analyses following Wulff & Mata (2025) <doi:10.1038/s41562-024-02089-y>: structural fidelity, scale-label alignment, semantic alpha, convergent and divergent validity, jingle-jangle detection, and data-driven relabeling of scale taxonomies.
 License: MIT + file LICENSE
 Encoding: UTF-8
