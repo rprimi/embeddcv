@@ -51,6 +51,9 @@
 #'   labels/definitions in columns. Row names must be scale ids; column names
 #'   must be label ids. Entries are usually cosine similarities from
 #'   `cosim_itens_scales(..., x_type = "scale", y_type = "definition")$cosim_matrix`.
+#'   Row names must use the same scale ids as `names(solution)`. If the full
+#'   `cosim_itens_scales()` output list is passed, its `$cosim_matrix` element
+#'   is used automatically.
 #'
 #' @return A named character vector with one entry per scale. Names are scale
 #'   ids and values are the matched label ids assigned to the scale's cluster.
@@ -76,15 +79,78 @@ relabel_solution <- function(solution, scale_label_cross) {
     stop("`solution` must be a named vector with scale ids in names(solution).", call. = FALSE)
   }
 
+  # Friendly handling when the full cosim_itens_scales() output is passed
+  if (is.list(scale_label_cross) && !is.data.frame(scale_label_cross) &&
+      !is.null(scale_label_cross$cosim_matrix)) {
+    scale_label_cross <- scale_label_cross$cosim_matrix
+  }
+
   scale_label_cross <- as.matrix(scale_label_cross)
+
+  if (is.null(rownames(scale_label_cross)) || is.null(colnames(scale_label_cross))) {
+    stop(
+      "`scale_label_cross` must have row names (scale ids) and column names ",
+      "(label ids). Use cosim_itens_scales(...)$cosim_matrix, which sets both.",
+      call. = FALSE
+    )
+  }
+
+  missing_ids <- setdiff(names(solution), rownames(scale_label_cross))
+  if (length(missing_ids) == length(solution)) {
+    stop(
+      "None of names(solution) match rownames(scale_label_cross). ",
+      "The clustering solutions and the scale-label cross matrix must use the ",
+      "same scale ids - typically both derive from the same scale embedding ",
+      "matrix. First solution ids: ",
+      paste(utils::head(names(solution), 2), collapse = " | "),
+      " ... vs cross rownames: ",
+      paste(utils::head(rownames(scale_label_cross), 2), collapse = " | "),
+      call. = FALSE
+    )
+  }
+  if (length(missing_ids) > 0) {
+    stop(
+      length(missing_ids), " scale id(s) in names(solution) are missing from ",
+      "rownames(scale_label_cross): ",
+      paste(utils::head(missing_ids, 3), collapse = " | "),
+      if (length(missing_ids) > 3) " ..." else "",
+      call. = FALSE
+    )
+  }
+  extra_ids <- setdiff(rownames(scale_label_cross), names(solution))
+  if (length(extra_ids) > 0) {
+    stop(
+      length(extra_ids), " row(s) of scale_label_cross have no membership in ",
+      "`solution`: ",
+      paste(utils::head(extra_ids, 3), collapse = " | "),
+      if (length(extra_ids) > 3) " ..." else "",
+      call. = FALSE
+    )
+  }
+
   solution <- solution[rownames(scale_label_cross)]
   cls <- sort(unique(solution))
+
+  if (length(cls) > ncol(scale_label_cross)) {
+    stop(
+      "Solution has ", length(cls), " clusters but scale_label_cross offers ",
+      "only ", ncol(scale_label_cross), " candidate labels; one-label-per-",
+      "cluster matching is impossible. Restrict k_seq to at most the number ",
+      "of labels.",
+      call. = FALSE
+    )
+  }
+
+  # Internal cluster vertex ids are prefixed so they can never collide with a
+  # label id that happens to look like a cluster number (igraph matches
+  # vertices by name).
+  cluster_ids <- paste0("cl__", seq_along(cls))
 
   weights <- matrix(
     NA_real_,
     nrow = length(cls),
     ncol = ncol(scale_label_cross),
-    dimnames = list(as.character(seq_along(cls)), colnames(scale_label_cross))
+    dimnames = list(cluster_ids, colnames(scale_label_cross))
   )
 
   for (i in seq_along(cls)) {
@@ -97,6 +163,14 @@ relabel_solution <- function(solution, scale_label_cross) {
     stringsAsFactors = FALSE
   )
   edge_list$weight <- weights[cbind(edge_list$clusters, edge_list$constructs)]
+
+  # Shift weights to be strictly positive: max_bipartite_match would rather
+  # leave a cluster unmatched than use a negative-weight edge, and a constant
+  # shift does not change which perfect matching is optimal.
+  min_w <- min(edge_list$weight, na.rm = TRUE)
+  if (min_w <= 0) {
+    edge_list$weight <- edge_list$weight - min_w + 1e-6
+  }
 
   g <- igraph::make_empty_graph(directed = FALSE)
   g <- igraph::add_vertices(
@@ -116,13 +190,20 @@ relabel_solution <- function(solution, scale_label_cross) {
   )
 
   matched <- igraph::max_bipartite_match(g)
-  matched <- cbind(names(matched$matching), matched$matching)
-  matched <- matched[!is.na(matched[, 1]), , drop = FALSE]
-  matched <- matched[seq_along(cls), , drop = FALSE]
-  cluster_labels <- matched[, 2]
-  names(cluster_labels) <- matched[, 1]
+  cluster_labels <- matched$matching[cluster_ids]
 
-  out <- cluster_labels[as.character(solution)]
+  if (anyNA(cluster_labels)) {
+    stop(
+      "Bipartite matching failed to assign a label to every cluster (",
+      sum(is.na(cluster_labels)), " unmatched). This should not happen when ",
+      "the number of clusters does not exceed the number of labels.",
+      call. = FALSE
+    )
+  }
+
+  # Map each scale to its cluster's matched label via the cluster's position
+  # in `cls` (robust to non-consecutive or character cluster codes).
+  out <- unname(cluster_labels)[match(solution, cls)]
   names(out) <- names(solution)
   out
 }
@@ -540,8 +621,15 @@ score_relabeling_solutions <- function(
     label_cos,
     thresholds) {
 
+  if (is.list(scale_label_cross) && !is.data.frame(scale_label_cross) &&
+      !is.null(scale_label_cross$cosim_matrix)) {
+    scale_label_cross <- scale_label_cross$cosim_matrix
+  }
+  n_labels <- ncol(as.matrix(scale_label_cross))
+
   rows <- list()
   counter <- 1L
+  n_skipped <- 0L
 
   for (type_name in names(clustering_solutions)) {
     sols <- clustering_solutions[[type_name]]
@@ -550,6 +638,11 @@ score_relabeling_solutions <- function(
     if (length(sols) == 0) next
 
     for (solution in sols) {
+      if (length(unique(solution)) > n_labels) {
+        n_skipped <- n_skipped + 1L
+        next
+      }
+
       scored <- score_clustering_solution(
         clustering_solution = solution,
         scale_label_cross = scale_label_cross,
@@ -570,6 +663,14 @@ score_relabeling_solutions <- function(
       rows[[counter]]$label_vectors <- list(scored$labels)
       counter <- counter + 1L
     }
+  }
+
+  if (n_skipped > 0) {
+    warning(
+      n_skipped, " solution(s) skipped: more clusters than the ", n_labels,
+      " candidate labels in scale_label_cross.",
+      call. = FALSE
+    )
   }
 
   out <- do.call(rbind, rows)
