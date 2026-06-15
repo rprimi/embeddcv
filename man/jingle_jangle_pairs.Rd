@@ -8,8 +8,8 @@ jingle_jangle_pairs(
   scale_cos,
   label_cos,
   label_by_scale = NULL,
-  label_fun = scale_label_from_scale,
-  instrument_fun = instrument_from_scale,
+  labels = NULL,
+  instrument = NULL,
   upper_only = TRUE
 )
 }
@@ -28,21 +28,21 @@ label ids. \code{names(label_by_scale)} must include every row name in
 \code{scale_cos}; the values must be row/column names in \code{label_cos}. If \code{NULL},
 scale ids are assumed to be identical to label ids.}
 
-\item{label_fun}{Function that accepts a character vector of scale ids and
-returns display construct labels of the same length. For example, the
-default \code{scale_label_from_scale()} turns \code{"pers_inv_social_boldness"} into
-\code{"inv_social_boldness"}.}
+\item{labels}{Optional character vector of display labels for the scales, in
+the same order as \code{rownames(scale_cos)} (length \code{nrow(scale_cos)}). These
+are the names shown in the plots. If \code{NULL}, the scale ids (row names of
+\code{scale_cos}) are used.}
 
-\item{instrument_fun}{Function that accepts a character vector of scale ids
-and returns display instrument names of the same length. The default
-\code{instrument_from_scale()} turns \code{"pers_inv_social_boldness"} into
-\code{"pers"}.}
+\item{instrument}{Optional character vector of instrument/inventory names for
+the scales, in the same order as \code{rownames(scale_cos)} (length
+\code{nrow(scale_cos)}). If supplied, plot labels become \code{"label (instrument)"};
+if \code{NULL} (default), only \code{label} is shown.}
 
 \item{upper_only}{Logical scalar. If \code{TRUE}, keep only unique unordered scale
 pairs (\code{i < j}). If \code{FALSE}, all ordered pairs are returned.}
 }
 \value{
-Data frame with scale ids, display labels, instrument labels, mapped
+Data frame with scale ids, display labels, instrument names, mapped
 label ids, \code{label_cos}, and \code{scale_cos}.
 }
 \description{

@@ -95,18 +95,18 @@ jingle_jangle_thresholds <- function(
 #'   label ids. `names(label_by_scale)` must include every row name in
 #'   `scale_cos`; the values must be row/column names in `label_cos`. If `NULL`,
 #'   scale ids are assumed to be identical to label ids.
-#' @param label_fun Function that accepts a character vector of scale ids and
-#'   returns display construct labels of the same length. For example, the
-#'   default `scale_label_from_scale()` turns `"pers_inv_social_boldness"` into
-#'   `"inv_social_boldness"`.
-#' @param instrument_fun Function that accepts a character vector of scale ids
-#'   and returns display instrument names of the same length. The default
-#'   `instrument_from_scale()` turns `"pers_inv_social_boldness"` into
-#'   `"pers"`.
+#' @param labels Optional character vector of display labels for the scales, in
+#'   the same order as `rownames(scale_cos)` (length `nrow(scale_cos)`). These
+#'   are the names shown in the plots. If `NULL`, the scale ids (row names of
+#'   `scale_cos`) are used.
+#' @param instrument Optional character vector of instrument/inventory names for
+#'   the scales, in the same order as `rownames(scale_cos)` (length
+#'   `nrow(scale_cos)`). If supplied, plot labels become `"label (instrument)"`;
+#'   if `NULL` (default), only `label` is shown.
 #' @param upper_only Logical scalar. If `TRUE`, keep only unique unordered scale
 #'   pairs (`i < j`). If `FALSE`, all ordered pairs are returned.
 #'
-#' @return Data frame with scale ids, display labels, instrument labels, mapped
+#' @return Data frame with scale ids, display labels, instrument names, mapped
 #'   label ids, `label_cos`, and `scale_cos`.
 #'
 #' @references
@@ -119,8 +119,8 @@ jingle_jangle_pairs <- function(
     scale_cos,
     label_cos,
     label_by_scale = NULL,
-    label_fun = scale_label_from_scale,
-    instrument_fun = instrument_from_scale,
+    labels = NULL,
+    instrument = NULL,
     upper_only = TRUE) {
 
   scale_cos <- as.matrix(scale_cos)
@@ -133,12 +133,12 @@ jingle_jangle_pairs <- function(
   if (!identical(scales, colnames(scale_cos))) {
     stop("`scale_cos` row names and column names must be aligned.", call. = FALSE)
   }
+  n <- length(scales)
 
+  # Map scale ids to label ids for the label_cos lookup.
   if (is.null(label_by_scale)) {
-    label_by_scale <- scales
-    names(label_by_scale) <- scales
+    label_by_scale <- stats::setNames(scales, scales)
   }
-
   label_by_scale <- as.character(label_by_scale[scales])
   if (anyNA(label_by_scale)) {
     stop("`label_by_scale` must map every scale in `scale_cos`.", call. = FALSE)
@@ -148,26 +148,41 @@ jingle_jangle_pairs <- function(
     stop("Every mapped label must exist in `label_cos` row and column names.", call. = FALSE)
   }
 
-  idx <- expand.grid(i = seq_along(scales), j = seq_along(scales))
+  # Display labels: taken from `labels` (in row order) or default to scale ids.
+  if (is.null(labels)) labels <- scales
+  labels <- as.character(labels)
+  if (length(labels) != n) {
+    stop("`labels` must have length nrow(scale_cos) (", n, ").", call. = FALSE)
+  }
+  names(labels) <- scales
+
+  # Optional instrument names, in the same row order.
+  if (!is.null(instrument)) {
+    instrument <- as.character(instrument)
+    if (length(instrument) != n) {
+      stop("`instrument` must have length nrow(scale_cos) (", n, ").", call. = FALSE)
+    }
+    names(instrument) <- scales
+  }
+
+  idx <- expand.grid(i = seq_len(n), j = seq_len(n))
   if (isTRUE(upper_only)) {
     idx <- idx[idx$i < idx$j, , drop = FALSE]
   }
 
   scale_1 <- scales[idx$i]
   scale_2 <- scales[idx$j]
-  label_1_id <- label_by_scale[idx$i]
-  label_2_id <- label_by_scale[idx$j]
 
   out <- data.frame(
     scale_1 = scale_1,
-    instrument_1 = instrument_fun(scale_1),
-    label_1 = label_fun(scale_1),
     scale_2 = scale_2,
-    instrument_2 = instrument_fun(scale_2),
-    label_2 = label_fun(scale_2),
-    label_id_1 = label_1_id,
-    label_id_2 = label_2_id,
-    label_cos = label_cos[cbind(label_1_id, label_2_id)],
+    label_1 = unname(labels[scale_1]),
+    label_2 = unname(labels[scale_2]),
+    instrument_1 = if (is.null(instrument)) NA_character_ else unname(instrument[scale_1]),
+    instrument_2 = if (is.null(instrument)) NA_character_ else unname(instrument[scale_2]),
+    label_id_1 = label_by_scale[idx$i],
+    label_id_2 = label_by_scale[idx$j],
+    label_cos = label_cos[cbind(label_by_scale[idx$i], label_by_scale[idx$j])],
     scale_cos = scale_cos[cbind(scale_1, scale_2)],
     stringsAsFactors = FALSE
   )
@@ -236,13 +251,16 @@ classify_jingle_jangle <- function(pair_table, thresholds, verbose = TRUE) {
     )
   )
   out$cos_diff <- abs(out$scale_cos - out$label_cos)
-  out$scale_construct_i_short <- short_text(out$label_1, 18)
-  out$scale_construct_j_short <- short_text(out$label_2, 18)
-  out$inventory_i <- out$instrument_1
-  out$inventory_j <- out$instrument_2
+
+  # Display label per scale: "label" or, when an instrument is present,
+  # "label (instrument)". Then join the two scales of the pair with " - ".
+  disp <- function(lab, instr) {
+    if (is.null(instr) || all(is.na(instr))) return(lab)
+    ifelse(is.na(instr) | instr == "", lab, paste0(lab, " (", instr, ")"))
+  }
   out$label <- paste0(
-    capitalize_first(out$scale_construct_i_short), " (", out$inventory_i, ") - ",
-    capitalize_first(out$scale_construct_j_short), " (", out$inventory_j, ")"
+    disp(out$label_1, out$instrument_1), " - ",
+    disp(out$label_2, out$instrument_2)
   )
   if (isTRUE(verbose)) {
     embeddcv_message_jj_counts(out, prefix = "Jingle-jangle classification")
