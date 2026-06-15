@@ -673,9 +673,43 @@ score_relabeling_solutions <- function(
     )
   }
 
+  if (length(rows) == 0) {
+    stop(
+      "No solutions could be scored: every clustering solution has more ",
+      "clusters than the ", n_labels, " candidate labels in ",
+      "scale_label_cross. Lower k_seq in ",
+      "make_relabeling_clustering_solutions() so that at least some ",
+      "solutions have k <= ", n_labels, ".",
+      call. = FALSE
+    )
+  }
+
   out <- do.call(rbind, rows)
   rownames(out) <- NULL
   out
+}
+
+# Validate that an object is a usable scored-solutions table (the output of
+# score_relabeling_solutions()). Gives an actionable message instead of the
+# cryptic "incorrect number of dimensions" that arises when a NULL or
+# non-data-frame is indexed by row.
+embeddcv_check_labels_scored <- function(labels_scored) {
+  arg <- deparse(substitute(labels_scored))
+  if (is.null(labels_scored) || !is.data.frame(labels_scored) ||
+      nrow(labels_scored) == 0 || is.null(labels_scored$type)) {
+    stop(
+      "`", arg, "` is not a valid scored-solutions data frame. It should be ",
+      "the output of score_relabeling_solutions() with at least one row and a ",
+      "`type` column. Got: ",
+      if (is.null(labels_scored)) "NULL"
+      else paste0(class(labels_scored)[1], " with ",
+                  if (is.data.frame(labels_scored)) nrow(labels_scored) else length(labels_scored),
+                  " row(s)"),
+      ".",
+      call. = FALSE
+    )
+  }
+  invisible(TRUE)
 }
 
 #' Select optimal and parsimonious relabeling solutions
@@ -741,6 +775,7 @@ select_relabeling_solutions <- function(
     max_constructs = 100,
     exclude = c("original_b5", "louvain")) {
 
+  embeddcv_check_labels_scored(labels_scored)
   dat <- labels_scored[!labels_scored$type %in% exclude, , drop = FALSE]
   types <- unique(dat$type)
   out <- list()
@@ -816,6 +851,7 @@ plot_relabeling_robustness <- function(
     dpi = 300,
     palette = "wulff_mata") {
 
+  embeddcv_check_labels_scored(labels_scored)
   cols <- embeddcv_relabel_palette(3, palette = palette, end = .9)
   dat <- labels_scored[!labels_scored$type %in% c("original_b5", "louvain"), , drop = FALSE]
   dat$type <- dplyr::case_when(
@@ -966,6 +1002,7 @@ prepare_relabeling_panels <- function(
     palette = "wulff_mata",
     verbose = TRUE) {
 
+  embeddcv_check_labels_scored(labels_scored)
   solution <- match.arg(solution)
 
   panel_c <- prepare_relabeling_panel_c(
