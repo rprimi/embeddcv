@@ -10,8 +10,7 @@ hoffman_complexity(x)
 \item{x}{Numeric vector.}
 }
 \value{
-Numeric complexity value. Returns \code{NA} if the fourth-power sum is
-zero.
+Numeric complexity value. Returns \code{NA} if the fourth-power sum is zero.
 }
 \description{
 Computes Hoffman's complexity index for a numeric vector, often used for
@@ -19,10 +18,7 @@ factor loadings or correlation patterns.
 }
 \details{
 For a finite vector \eqn{x}, Hoffman's complexity index is
-
 \deqn{\frac{(\sum_i x_i^2)^2}{\sum_i x_i^4}.}
-
-Values near 1 indicate that one element dominates the profile. Larger values
-indicate that the profile is spread across more elements. Non-finite values
-are removed before the calculation.
+Values near 1 indicate one element dominates; larger values indicate a more
+spread profile. Non-finite values are removed first.
 }

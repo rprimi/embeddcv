@@ -29,82 +29,34 @@ plot_similarity_distribution(
 )
 }
 \arguments{
-\item{similarities}{Numeric vector, matrix, array, or data frame containing
-cosine similarities. Matrix row and column names are optional.}
+\item{similarities}{Numeric vector, similarity matrix, or data frame
+(with a similarity column).}
 
-\item{value_col}{Optional character scalar naming the similarity column when
-\code{similarities} is a data frame.}
+\item{value_col}{Column name when \code{similarities} is a data frame. If
+\code{NULL}, the first of \code{cosim}/\code{similarity}/\code{value}/
+\code{cosine}/\code{cos} present is used.}
 
-\item{output_file}{Optional character path. If supplied, the plot is written
-with \code{ggplot2::ggsave()}.}
+\item{output_file, width, height, dpi}{Optional save path and size.}
 
-\item{width, height, dpi}{Numeric scalars passed to \code{ggplot2::ggsave()} when
-\code{output_file} is not \code{NULL}.}
+\item{bins}{Integer histogram bins.}
 
-\item{bins}{Integer scalar. Number of histogram bins.}
+\item{palette, hist_fill, density_col, marker_col}{Colors.}
 
-\item{palette}{Character scalar. Color palette. Options are \code{"wulff_mata"},
-\code{"cividis"}, \code{"viridis"}, \code{"magma"}, \code{"plasma"}, \code{"inferno"},
-\code{"okabe_ito"}, and \code{"blue_gold"}. This is kept for backward
-compatibility; the default histogram, density, and marker colors are
-controlled by \code{hist_fill}, \code{density_col}, and \code{marker_col}.}
+\item{title, subtitle, x_label, y_label}{Plot labels.}
 
-\item{hist_fill}{Character scalar. Fill color for histogram bars.}
+\item{show_quartiles, show_percentiles, percentiles, all_deciles}{Marker controls.}
 
-\item{density_col}{Character scalar. Color for the density curve.}
+\item{matrix_triangle}{For square matrices, which values to use:
+\code{"upper"} (default), \code{"lower"}, or \code{"all"}.}
 
-\item{marker_col}{Character scalar. Color for quartile/percentile dashed
-lines and their bold labels.}
-
-\item{title, subtitle}{Optional character scalars for the plot title and
-subtitle. If \code{subtitle = NULL}, a compact summary with N, mean, and SD is
-generated automatically.}
-
-\item{x_label, y_label}{Axis labels.}
-
-\item{show_quartiles}{Logical scalar. If \code{TRUE}, draws Q1, Q2, and Q3.}
-
-\item{show_percentiles}{Logical scalar. If \code{TRUE}, draws percentile markers.}
-
-\item{percentiles}{Numeric vector of probabilities in 0-1 scale, or
-percentages in 0-100 scale. Used when \code{show_percentiles = TRUE} and
-\code{all_deciles = FALSE}.}
-
-\item{all_deciles}{Logical scalar. If \code{TRUE}, ignores \code{percentiles} and uses
-P10, P20, ..., P90.}
-
-\item{matrix_triangle}{Character scalar, one of \code{"upper"}, \code{"lower"}, or
-\code{"all"}. Used only for square matrices.}
-
-\item{line_label_digits}{Integer scalar. Number of decimal places shown under
-quartile and percentile labels.}
+\item{line_label_digits}{Digits for marker value labels.}
 }
 \value{
-A ggplot object. If \code{output_file} is supplied, the same plot is saved
-to disk.
+A ggplot object (also saved when \code{output_file} is supplied).
 }
 \description{
-Draws a polished histogram for a vector, matrix, or data frame of cosine
-similarities. The function is useful for inspecting item-item, scale-scale,
-definition-definition, or cross-set similarities before choosing thresholds
-or running downstream analyses.
-}
-\details{
-Numeric vectors are plotted directly. For square matrices, the default
-\code{matrix_triangle = "upper"} uses only the upper triangle, which removes the
-diagonal self-similarities and avoids counting symmetric pairs twice. For
-rectangular matrices, all finite values are used. For data frames, supply
-\code{value_col}; if it is omitted, the function looks for a column named
-\code{cosim}, \code{similarity}, \code{value}, \code{cosine}, or \code{cos}.
-
-When \code{show_quartiles = TRUE}, dashed vertical lines mark Q25, Q50, and Q75.
-Labels are printed below the x axis with the quantile name and the
-corresponding value. When \code{show_percentiles = TRUE}, percentile markers are
-also drawn. By default these are P10, P30, P50, P70, and P90; set
-\code{all_deciles = TRUE} to show P10 through P90.
-}
-\examples{
-x <- rbeta(400, 4, 6)
-plot_similarity_distribution(x)
-plot_similarity_distribution(x, show_percentiles = TRUE, show_quartiles = FALSE)
+Draws a polished histogram with density overlay for a vector, matrix, or data
+frame of cosine similarities, with optional quartile/percentile markers.
+Useful for inspecting item-item, scale-scale, definition-definition, or
+cross-set similarities before choosing thresholds.
 }

@@ -26,7 +26,7 @@ needed by panel C.}
 \item{scale_label_cross}{Numeric scale-by-label similarity matrix used to
 compute panel C label ranks and assignments. Rows are scale ids and
 columns are candidate label ids. It is usually
-\code{cosim_itens_scales(scale_emb, label_emb)$cosim_matrix}.}
+\code{cosim_xy(scale_emb, label_emb)$matrix}.}
 
 \item{label_by_scale}{Named character vector mapping each scale id to its
 original label id. Names must correspond to row names of

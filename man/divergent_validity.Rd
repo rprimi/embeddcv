@@ -2,7 +2,7 @@
 % Please edit documentation in R/validation_figures.R
 \name{divergent_validity}
 \alias{divergent_validity}
-\title{Compute divergent-validity recovery from empirical correlations}
+\title{Divergent validity: predicted vs. empirical correlations}
 \usage{
 divergent_validity(
   similarity,
@@ -11,63 +11,37 @@ divergent_validity(
   id_2_col,
   observed_col = "abs_cor",
   group_col = NULL,
-  model_names = NULL,
   similarity_type = "Similarity"
 )
 }
 \arguments{
-\item{similarity}{Numeric square similarity matrix, or a named list of such
-matrices. Rows and columns must contain the ids referenced in
-\code{empirical_pairs}.}
+\item{similarity}{Numeric similarity matrix with row/column names (item or
+scale ids).}
 
-\item{empirical_pairs}{Data frame with one row per observed item or scale
-pair.}
+\item{empirical_pairs}{Data frame of pairs with id columns and an observed
+value column.}
 
-\item{id_1_col, id_2_col}{Character scalars naming the columns in
-\code{empirical_pairs} that contain the first and second ids.}
+\item{id_1_col, id_2_col}{Names of the two id columns in \code{empirical_pairs}.}
 
-\item{observed_col}{Character scalar naming the empirical criterion column,
-usually an absolute correlation such as \code{abs_cor}.}
+\item{observed_col}{Name of the observed value column (e.g. absolute
+correlation). Default \code{"abs_cor"}.}
 
-\item{group_col}{Optional character scalar naming a grouping column, such as
-inventory. If \code{NULL}, all pairs are summarized together.}
+\item{group_col}{Optional grouping column (e.g. inventory). If \code{NULL},
+all pairs form one group.}
 
-\item{model_names}{Optional character vector used to name the similarity
-matrices when \code{similarity} is not already a named list.}
-
-\item{similarity_type}{Character scalar written to the returned \code{type} column,
-for example \code{"Item"} or \code{"Scale (avg.)"}.}
+\item{similarity_type}{Character label stored in the \code{type} column.}
 }
 \value{
-Data frame with one row per model and group. Columns include \code{model},
-\code{group}, \code{type}, \code{n_pairs}, \code{correlation}, and \code{mae}.
+A data frame with \code{group}, \code{type}, \code{n_pairs},
+\code{correlation} (Pearson r of predicted vs. observed), and \code{mae}.
 }
 \description{
-Compares semantic similarities with empirical item or scale correlations. This
-is the calculation used by Wulff & Mata (2025) for divergent validity: if a
-semantic model recovers divergent validity, pairs of empirically unrelated
-measures should also have low semantic similarity.
+Correlates semantic similarities with \emph{external} empirical correlations for a
+set of pairs. This is a different kind of validation from
+\code{\link{semantic_validity}} because it needs an external criterion
+(observed correlations), so it is kept separate. Operates on a single
+similarity matrix; compare instruments/models in the pipeline.
 }
-\details{
-For each empirical pair \eqn{(a,b)}, the function extracts the predicted
-semantic similarity \eqn{S_{ab}} from \code{similarity} and compares it with the
-observed empirical criterion \eqn{|r_{ab}|}. For each model and optional
-group, it returns:
-
-\deqn{\rho = \operatorname{cor}(S_{ab}, |r_{ab}|)}
-
-and
-
-\deqn{\operatorname{MAE} =
-\frac{1}{P}\sum_{(a,b)} |S_{ab} - |r_{ab}||.}
-
-The observed column should therefore contain absolute empirical correlations
-if the goal is to match Wulff & Mata (2025). If it contains signed
-correlations, the function uses the values exactly as supplied.
-}
-\references{
-Wulff, D. U., & Mata, R. (2025). Semantic embeddings reveal and address
-taxonomic incommensurability in psychological measurement. Nature Human
-Behaviour, 9(5), 944-954.
-https://doi.org/10.1038/s41562-024-02089-y
+\seealso{
+\code{\link{plot_divergent_validity}}
 }

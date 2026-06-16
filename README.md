@@ -90,11 +90,13 @@ embeddings <- get_embeddings(
 ```
 
 ### 2. `cosim_itens_scales()`
-Compute cosine similarity matrix and complexity measures. Returns a list:
-`$cosim_mat` (wide data frame with one cosine column per scale plus
-complexity/sparsity measures), `$cosim_long` (long pair table),
-`$cosim_matrix` (raw cosine matrix), and `$plot_dist` (distribution plot of
-the coefficients, useful for benchmarking their empirical magnitude).
+Item-by-scale cosine similarities and complexity measures. Returns a list with
+`$cosim_mat` (wide data frame: one cosine column per scale plus
+best/second-best scale, Hoffman complexity, Hoyer sparsity, within-row SD) and
+`$plot_dist` (distribution plot of the coefficients, useful for benchmarking
+their empirical magnitude). For comparing **any** two embedding sets
+(scale-scale, scale-label, definition-definition, ...), use the general
+`cosim_xy()`, which returns `$matrix`, `$long`, and `$plot`.
 
 ```r
 cosim_results <- cosim_itens_scales(

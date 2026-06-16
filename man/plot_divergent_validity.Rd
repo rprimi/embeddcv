@@ -7,51 +7,31 @@
 plot_divergent_validity(
   divergent_tbl,
   output_file = NULL,
-  width = 8,
+  width = 7,
   height = 4,
   dpi = 600,
   palette = "wulff_mata",
-  show_model_labels = TRUE,
-  model_label_fun = identity,
   y_limits = c(-0.3, 1)
 )
 }
 \arguments{
-\item{divergent_tbl}{Data frame returned by \code{divergent_validity()}, or several
-such tables combined with \code{rbind()}. It must contain \code{model}, \code{group},
-\code{type}, and \code{correlation}.}
+\item{divergent_tbl}{Data frame from \code{divergent_validity()} (or several
+\code{rbind()}-ed together). Must contain \code{group}, \code{type},
+\code{correlation}.}
 
-\item{output_file}{Optional character path. If supplied, the plot is written
-with \code{ggplot2::ggsave()}.}
+\item{output_file, width, height, dpi}{Optional save path and size.}
 
-\item{width, height, dpi}{Numeric scalars passed to \code{ggplot2::ggsave()} when
-\code{output_file} is not \code{NULL}.}
+\item{palette}{Character. Color palette for \code{type}.}
 
-\item{palette}{Character scalar. Color palette for \code{type}. Options are
-\code{"wulff_mata"}, \code{"cividis"}, \code{"viridis"}, \code{"magma"}, \code{"plasma"},
-\code{"inferno"}, \code{"okabe_ito"}, and \code{"blue_gold"}.}
-
-\item{show_model_labels}{Logical scalar. If \code{TRUE} (default), prints model
-names on the x axis.}
-
-\item{model_label_fun}{Function used to convert model ids into displayed
-labels.}
-
-\item{y_limits}{Optional numeric vector of length 2.}
+\item{y_limits}{Numeric length-2 y-axis limits.}
 }
 \value{
-A ggplot object. If \code{output_file} is supplied, the same plot is saved
-to disk.
+A ggplot object (also saved when \code{output_file} is supplied).
 }
 \description{
-Plots Pearson correlations between semantic similarities and empirical
-correlations from \code{divergent_validity()}. The display follows the
-divergent-validity summary used by Wulff & Mata (2025), where models are
-compared across inventories and input levels such as item and scale.
+Bar plot of the predicted-vs-empirical correlations from
+\code{\link{divergent_validity}}, by group and similarity type.
 }
-\references{
-Wulff, D. U., & Mata, R. (2025). Semantic embeddings reveal and address
-taxonomic incommensurability in psychological measurement. Nature Human
-Behaviour, 9(5), 944-954.
-https://doi.org/10.1038/s41562-024-02089-y
+\seealso{
+\code{\link{divergent_validity}}
 }

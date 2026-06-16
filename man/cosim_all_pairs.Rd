@@ -2,7 +2,7 @@
 % Please edit documentation in R/cosim_itens_scales.R
 \name{cosim_all_pairs}
 \alias{cosim_all_pairs}
-\title{Compute all pairwise cosine similarities among named embedding sets}
+\title{All pairwise cosine similarities among named embedding sets}
 \usage{
 cosim_all_pairs(
   embeddings,
@@ -14,57 +14,36 @@ cosim_all_pairs(
 )
 }
 \arguments{
-\item{embeddings}{Named list of numeric matrices or data frames. Each element
-is an embedding set with rows as units and columns as embedding dimensions.
-All elements must have the same number of columns. The names of the list
-become set labels such as \code{"item"}, \code{"scale"}, and \code{"definition"}.}
+\item{embeddings}{Named list of numeric matrices/data frames, all with the
+same number of columns. Names become the set types (e.g. \code{"item"},
+\code{"scale"}, \code{"definition"}).}
 
-\item{labels}{Optional named list of character vectors. Names should match
-\code{names(embeddings)}. Each vector must have length equal to the number of
-rows in the corresponding embedding matrix and is passed to
-\code{cosim_itens_scales()} as \code{x_labels} or \code{y_labels}.}
+\item{labels}{Optional named list of character vectors (names match
+\code{embeddings}); passed to \code{cosim_xy} as \code{x_labels}/\code{y_labels}.}
 
-\item{groups}{Optional named list of character or factor vectors. Names
-should match \code{names(embeddings)}. Each vector must have length equal to the
-number of rows in the corresponding embedding matrix and is passed to
-\code{cosim_itens_scales()} as \code{x_group} or \code{y_group}.}
+\item{groups}{Optional named list of character/factor vectors; passed as
+\code{x_group}/\code{y_group}.}
 
-\item{include_same}{Logical scalar. If \code{TRUE}, include within-set
-comparisons such as \code{item_item} and \code{scale_scale}. If \code{FALSE}, only
-between-set comparisons are returned.}
+\item{include_same}{Logical. If \code{TRUE}, include within-set comparisons.}
 
-\item{drop_self}{Logical scalar. If \code{TRUE}, diagonal self-similarities in
+\item{drop_self}{Logical. If \code{TRUE}, diagonal self-similarities in
 within-set comparisons are set to \code{NA}.}
 
-\item{make_plot}{Logical scalar passed to \code{cosim_itens_scales()}. If \code{TRUE},
-each returned comparison includes a distribution plot in \code{plot_dist}.}
+\item{make_plot}{Logical passed to \code{cosim_xy}.}
 }
 \value{
-A named list of \code{cosim_itens_scales()} outputs. Each element contains
-\code{cosim_mat}, \code{cosim_long}, \code{cosim_matrix}, and \code{plot_dist}.
+A named list of \code{cosim_xy()} outputs (each with \code{matrix},
+\code{long}, \code{plot}), named \code{"<x_type>_<y_type>"}.
 }
 \description{
-Convenience wrapper around \code{cosim_itens_scales()} for producing all pairwise
-comparisons among named embedding sets. It is useful when an analysis needs
-item-item, item-scale, item-definition, scale-scale, scale-definition, and
-definition-definition similarities from the same set of embeddings.
-}
-\details{
-If \code{embeddings} has names \code{c("item", "scale", "definition")}, the default
-\code{include_same = TRUE} returns the upper-triangular set of comparisons:
-\code{item_item}, \code{item_scale}, \code{item_definition}, \code{scale_scale},
-\code{scale_definition}, and \code{definition_definition}. Within-set comparisons use
-\code{drop_self = TRUE} by default, so diagonal self-similarities are set to \code{NA}.
+Convenience wrapper around \code{\link{cosim_xy}} producing all pairwise
+comparisons among named embedding sets (e.g. item-item, item-scale,
+scale-scale, scale-definition).
 }
 \examples{
 \dontrun{
-embeddings <- list(
-  item = item_emb,
-  scale = scale_emb,
-  definition = definition_emb
-)
-sims <- cosim_all_pairs(embeddings, make_plot = FALSE)
+sims <- cosim_all_pairs(list(item = item_emb, scale = scale_emb))
 names(sims)
-sims$scale_definition$cosim_long
+sims$scale_scale$long
 }
 }

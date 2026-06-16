@@ -10,7 +10,7 @@ hoyer_sparsity(x)
 \item{x}{Numeric vector.}
 }
 \value{
-Numeric value between 0 and 1. Returns 0 if the L2 norm is zero.
+Numeric value between 0 and 1.
 }
 \description{
 Computes Hoyer's sparsity metric, which quantifies the level of sparsity in a
@@ -18,10 +18,6 @@ numeric vector. The value ranges from 0 (dense) to 1 (maximally sparse).
 }
 \details{
 For a vector \eqn{x} of length \eqn{n}, Hoyer's sparsity is
-
 \deqn{\frac{\sqrt{n} - \|x\|_1 / \|x\|_2}{\sqrt{n} - 1}.}
-
-The function removes non-finite values before computing the index. If the
-vector has length 0 or 1 after filtering, or if the L2 norm is zero, the
-function returns 0.
+Non-finite values are removed first. Returns 0 for length 0/1 or zero L2 norm.
 }

@@ -25,10 +25,10 @@ clarity in psychology using large language models*, as implemented in
 **embeddcv**. The workflow asks three questions about a collection of
 psychological scales and their construct definitions:
 
-1. **Validation** — do item embeddings recover the intended scale structure
-   (*structural fidelity*), do scale embeddings align with their assigned
-   definitions (*scale-label alignment*), and how internally consistent is each
-   scale semantically (*semantic alpha*)?
+1. **Validation** — `semantic_validity()` summarises, per scale, a semantic
+   reliability (*alpha*), *structural fidelity* (items closer within their
+   scale than to other scales), and, when constructs are supplied, *convergent
+   validity* (scales of the same construct closer to one another).
 2. **Jingle-jangle detection** — which scale pairs have similar labels but
    dissimilar content (*jingle fallacies*), and which have similar content but
    dissimilar labels (*jangle fallacies*)?
@@ -36,9 +36,10 @@ psychological scales and their construct definitions:
    with optimal label assignment, produce a taxonomy with fewer fallacies than
    the original one?
 
-The first part of this vignette runs a small simulated example so all functions
-can be executed quickly. The second part documents the full B5/PD pipeline used
-with real instrument data.
+The functions operate on **one instrument** at a time; to compare instruments
+you run the analysis per instrument in your own pipeline. The first part of
+this vignette runs a small simulated example so all functions can be executed
+quickly; the second part documents the full B5/PD pipeline.
 
 ```{r setup, message = FALSE, warning = FALSE}
 library(embeddcv)
@@ -50,9 +51,9 @@ set.seed(42)
 
 ## Part 1: A small simulated example
 
-We simulate embeddings for items belonging to five Big Five constructs, each
-measured by two instruments ("bfi" and "ipip"). Items from the same construct
-share a common center in embedding space.
+We simulate embeddings for items belonging to five Big Five constructs. Items
+from the same construct share a common center in embedding space. Each construct
+is measured by two scales, so convergent validity can be illustrated.
 
 ```{r simulate}
 n_dim <- 50
@@ -62,14 +63,14 @@ centers <- matrix(rnorm(5 * n_dim), 5, n_dim)
 
 make_emb <- function(n, center) center + matrix(rnorm(n * n_dim, sd = .35), n, n_dim)
 
-# 8 items per construct (4 per instrument)
+# 8 items per construct (4 per scale, two scales per construct)
 item_emb <- do.call(rbind, lapply(1:5, function(i) make_emb(8, centers[i, ])))
 rownames(item_emb) <- paste0("it_", rep(constructs, each = 8), "_", 1:8)
-item_scale_id <- paste0(rep(c("bfi", "ipip"), 20), "_", rep(constructs, each = 8))
+item_scale_id <- paste0(rep(c("s1", "s2"), 20), "_", rep(constructs, each = 8))
 
-# Definition/label embeddings: one definition per scale
+# One definition/label embedding per scale
 label_emb <- do.call(rbind, lapply(1:5, function(i) make_emb(2, centers[i, ])))
-rownames(label_emb) <- paste0(rep(c("bfi", "ipip"), times = 5),
+rownames(label_emb) <- paste0(rep(c("s1", "s2"), times = 5),
                               "_", rep(constructs, each = 2))
 ```
 
@@ -93,11 +94,12 @@ label_by_scale <- label_by_scale[rownames(scale_cos)]
 round(scale_cos_raw[1:4, 1:4], 2)
 ```
 
-### All pairwise comparisons at once
+### Cosine similarities between any two sets
 
-`cosim_all_pairs()` wraps the generalized `cosim_itens_scales()` to produce
-item-item, item-scale, item-definition, scale-scale, scale-definition, and
-definition-definition similarities in one call.
+`cosim_xy()` is the general engine: pass two embedding sets for a cross
+comparison, or one set (`y = NULL`) for a symmetric within-set matrix. It
+returns the raw `$matrix`, a tidy `$long` pair table, and an optional `$plot`.
+`cosim_all_pairs()` wraps it to produce every pairwise comparison at once.
 
 ```{r all-pairs}
 sims <- cosim_all_pairs(
@@ -105,32 +107,32 @@ sims <- cosim_all_pairs(
   make_plot = FALSE
 )
 names(sims)
-head(sims$scale_definition$cosim_long)
+head(sims$scale_definition$long)
 ```
 
-### Validation: semantic alpha and structural fidelity
+### Validation: one tidy table per scale
+
+`semantic_validity()` computes the semantic alpha, structural fidelity, and
+(given a construct grouping) convergent validity for every scale in one call.
 
 ```{r validation}
-item_cos <- cosine_matrix(item_emb)
-
-semantic_alpha_tbl <- semantic_alpha(
-  item_cos = item_cos,
-  scale_id = item_scale_id,
-  model_names = "toy"
+# Map each scale to its construct (drop the "s1_"/"s2_" prefix)
+construct_by_scale <- setNames(
+  sub("^s[12]_", "", rownames(scale_emb)),
+  rownames(scale_emb)
 )
-semantic_alpha_tbl
 
-structural_fidelity_tbl <- structural_fidelity(
-  item_cos = item_cos,
+validity <- semantic_validity(
+  item_emb = item_emb,
   scale_id = item_scale_id,
-  inventory = sub("_.*", "", item_scale_id),
-  model_names = "toy"
+  construct_by_scale = construct_by_scale,
+  min_scales = 3
 )
-structural_fidelity_tbl
+validity
 ```
 
 ```{r fidelity-plot, fig.height = 4}
-plot_structural_fidelity(structural_fidelity_tbl, show_legend = FALSE)
+plot_semantic_validity(validity, index = "fidelity")
 ```
 
 ### Jingle-jangle detection
@@ -160,21 +162,17 @@ plot_jingle_jangle_scatter(pair_table = jj, thresholds = thresholds)
 
 ### Relabeling: clustering + optimal label assignment
 
-`make_relabeling_clustering_solutions()` generates candidate taxonomies
-(hierarchical, k-means, and optionally Mclust/Louvain).
+`make_relabeling_clustering_solutions()` generates candidate taxonomies.
 `score_relabeling_solutions()` assigns the best label to each cluster via
-bipartite matching on the scale-definition similarity matrix and counts the
-fallacies of each candidate. `select_relabeling_solutions()` applies the
-parsimonious/optimal selection rule.
+bipartite matching on the scale-definition similarity matrix (from
+`cosim_xy(...)$matrix`) and counts the fallacies of each candidate.
+`select_relabeling_solutions()` applies the parsimonious/optimal selection rule.
 
 ```{r relabeling}
-scale_label_cross <- cosim_itens_scales(
-  item_emb = scale_emb,
-  scale_emb = label_emb,
-  x_type = "scale",
-  y_type = "definition",
-  make_plot = FALSE
-)$cosim_matrix
+scale_label_cross <- cosim_xy(
+  scale_emb, label_emb,
+  x_type = "scale", y_type = "definition"
+)$matrix
 
 solutions <- make_relabeling_clustering_solutions(
   scale_cos = scale_cos,
@@ -211,8 +209,9 @@ score_label_solution(
 
 The complete analysis of Big Five and personality-disorder instruments uses
 saved item and definition embeddings (`dados.RData`, ~33 MB, not shipped with
-the package; contact the authors). The code below condenses the full pipeline
-script `b5_pd_wulff_mata_embeddcv.R`; it is shown but not evaluated.
+the package; contact the authors). The code below condenses the full pipeline;
+it is shown but not evaluated. For several instruments, run the validation per
+instrument and combine the resulting tables in your own pipeline.
 
 ```{r full-pipeline, eval = FALSE}
 load("dados.RData")   # itens, definicoes, item_embedd, definicoes_embedd
@@ -221,9 +220,7 @@ load("dados.RData")   # itens, definicoes, item_embedd, definicoes_embedd
 item_emb <- as.matrix(item_embedd)
 rownames(item_emb) <- make.unique(as.character(itens$cod_item))
 
-# Harmonize scale ids between the item table and the definition table,
-# then group item embeddings into scale embeddings.
-item_scale_id <- itens$scale   # after the id-harmonization steps
+item_scale_id <- itens$scale   # after id-harmonization
 scale_emb <- get_scale_embeddings(item_emb, item_scale_id)
 
 label_emb <- as.matrix(definicoes_embedd)
@@ -235,10 +232,11 @@ scale_cos_raw <- cosine_matrix(scale_emb)
 scale_cos     <- rescale_similarity(scale_cos_raw)
 label_cos     <- cosine_matrix(label_emb)
 
-scale_label_cross <- cosim_itens_scales(
-  item_emb = scale_emb, scale_emb = label_emb,
-  x_type = "scale", y_type = "definition", make_plot = FALSE
-)$cosim_matrix
+# scale x definition cross-similarity (weights for relabeling)
+scale_label_cross <- cosim_xy(
+  scale_emb, label_emb,
+  x_type = "scale", y_type = "definition"
+)$matrix
 
 # Diagnostic distributions for every embedding-level comparison
 sims <- cosim_all_pairs(
@@ -246,38 +244,27 @@ sims <- cosim_all_pairs(
   make_plot = FALSE
 )
 plot_similarity_distribution(
-  similarities = sims$scale_scale$cosim_long,
+  similarities = sims$scale_scale$long,
   title = "Scale-scale cosine similarity distribution",
   show_quartiles = TRUE
 )
 
-# 3. Validation -------------------------------------------------------------
-item_cos <- cosine_matrix(item_emb)
-
-semantic_alpha_tbl <- semantic_alpha(item_cos, item_scale_id, model_names = "B5")
-
-structural_fidelity_tbl <- structural_fidelity(
-  item_cos = item_cos,
+# 3. Validation (one instrument) --------------------------------------------
+# construct_by_scale maps each scale to its construct (named by scale id).
+validity <- semantic_validity(
+  item_emb = item_emb,
   scale_id = item_scale_id,
-  inventory = itens$instrumento,
-  model_names = "B5"
+  construct_by_scale = setNames(definicoes$construct, definicoes$scale)
 )
-plot_structural_fidelity(structural_fidelity_tbl,
-                         output_file = "01A_structural_fidelity.png")
+plot_semantic_validity(validity, index = "fidelity",
+                       output_file = "01A_fidelity.png")
+plot_semantic_validity(validity, index = "alpha_semantic", recovery_line = NULL)
+plot_semantic_validity(validity, index = "convergent_similarity")
 
-scale_label_alignment_tbl <- scale_label_alignment(
-  scale_emb = scale_emb,
-  label_embeddings = list(B5 = label_emb),
-  label_by_scale = label_by_scale[rownames(scale_emb)]
-)
-plot_scale_label_alignment(scale_label_alignment_tbl)
-
-convergent_validity_tbl <- convergent_validity(
-  scale_cos = scale_cos_raw,
-  construct_by_scale = scale_label_from_scale(label_by_scale[rownames(scale_cos_raw)]),
-  min_scales_per_construct = 3
-)
-plot_convergent_validity(convergent_validity_tbl)
+# Divergent validity needs an EXTERNAL criterion (observed correlations):
+# divergent_validity(similarity = scale_cos_raw, empirical_pairs = obs_pairs,
+#                    id_1_col = "scale_1", id_2_col = "scale_2",
+#                    observed_col = "abs_cor")
 
 # 4. Jingle-jangle ----------------------------------------------------------
 jj_base    <- jingle_jangle_pairs(scale_cos, label_cos, label_by_scale)
@@ -288,7 +275,6 @@ jj         <- classify_jingle_jangle(jj_base, thresholds)
 plot_jingle_jangle_scatter(jj, thresholds, output_file = "02A_scatter.png")
 plot_jingle_jangle(jj, thresholds, output_file = "03_jingle_jangle.png")
 
-# Sensitivity of fallacy counts to the cutoff rule
 grid <- jingle_jangle_threshold_grid(jj_base, scale_cos, label_cos,
                                      lows = 1:10, highs = seq(50, 250, 20))
 plot_jingle_jangle_cutoffs(grid, output_file = "S01_cutoffs.png")
@@ -319,7 +305,7 @@ panels <- prepare_relabeling_panels(
   max_constructs = 100,
   palette = "magma"
 )
-plot_relabeling_figure(panels, output_file = "04_relabeling.png",
+plot_relabeling_figure(relabeling_panels = panels, output_file = "04_relabeling.png",
                        max_constructs = 100, palette = "magma")
 plot_relabeling_robustness(scored,
                            original_fallacy_sum = original_score["fallacy_sum"],

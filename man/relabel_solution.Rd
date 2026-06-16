@@ -17,10 +17,10 @@ as one cluster. This is usually one membership vector from
 \item{scale_label_cross}{Numeric matrix with scales in rows and candidate
 labels/definitions in columns. Row names must be scale ids; column names
 must be label ids. Entries are usually cosine similarities from
-\code{cosim_itens_scales(..., x_type = "scale", y_type = "definition")$cosim_matrix}.
+\code{cosim_xy(scale_emb, label_emb, x_type = "scale", y_type = "label")$matrix}.
 Row names must use the same scale ids as \code{names(solution)}. If the full
-\code{cosim_itens_scales()} output list is passed, its \verb{$cosim_matrix} element
-is used automatically.}
+\code{cosim_xy()} output list is passed, its \verb{$matrix} element (or the legacy
+\verb{$cosim_matrix}) is used automatically.}
 }
 \value{
 A named character vector with one entry per scale. Names are scale

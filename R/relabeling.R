@@ -50,10 +50,10 @@
 #' @param scale_label_cross Numeric matrix with scales in rows and candidate
 #'   labels/definitions in columns. Row names must be scale ids; column names
 #'   must be label ids. Entries are usually cosine similarities from
-#'   `cosim_itens_scales(..., x_type = "scale", y_type = "definition")$cosim_matrix`.
+#'   `cosim_xy(scale_emb, label_emb, x_type = "scale", y_type = "label")$matrix`.
 #'   Row names must use the same scale ids as `names(solution)`. If the full
-#'   `cosim_itens_scales()` output list is passed, its `$cosim_matrix` element
-#'   is used automatically.
+#'   `cosim_xy()` output list is passed, its `$matrix` element (or the legacy
+#'   `$cosim_matrix`) is used automatically.
 #'
 #' @return A named character vector with one entry per scale. Names are scale
 #'   ids and values are the matched label ids assigned to the scale's cluster.
@@ -79,10 +79,14 @@ relabel_solution <- function(solution, scale_label_cross) {
     stop("`solution` must be a named vector with scale ids in names(solution).", call. = FALSE)
   }
 
-  # Friendly handling when the full cosim_itens_scales() output is passed
-  if (is.list(scale_label_cross) && !is.data.frame(scale_label_cross) &&
-      !is.null(scale_label_cross$cosim_matrix)) {
-    scale_label_cross <- scale_label_cross$cosim_matrix
+  # Friendly handling when a full similarity-output list is passed: accept the
+  # cosim_xy() element `$matrix` or the legacy `$cosim_matrix`.
+  if (is.list(scale_label_cross) && !is.data.frame(scale_label_cross)) {
+    if (!is.null(scale_label_cross$matrix)) {
+      scale_label_cross <- scale_label_cross$matrix
+    } else if (!is.null(scale_label_cross$cosim_matrix)) {
+      scale_label_cross <- scale_label_cross$cosim_matrix
+    }
   }
 
   scale_label_cross <- as.matrix(scale_label_cross)
@@ -90,7 +94,7 @@ relabel_solution <- function(solution, scale_label_cross) {
   if (is.null(rownames(scale_label_cross)) || is.null(colnames(scale_label_cross))) {
     stop(
       "`scale_label_cross` must have row names (scale ids) and column names ",
-      "(label ids). Use cosim_itens_scales(...)$cosim_matrix, which sets both.",
+      "(label ids). Use cosim_xy(scale_emb, label_emb)$matrix, which sets both.",
       call. = FALSE
     )
   }
@@ -621,9 +625,12 @@ score_relabeling_solutions <- function(
     label_cos,
     thresholds) {
 
-  if (is.list(scale_label_cross) && !is.data.frame(scale_label_cross) &&
-      !is.null(scale_label_cross$cosim_matrix)) {
-    scale_label_cross <- scale_label_cross$cosim_matrix
+  if (is.list(scale_label_cross) && !is.data.frame(scale_label_cross)) {
+    if (!is.null(scale_label_cross$matrix)) {
+      scale_label_cross <- scale_label_cross$matrix
+    } else if (!is.null(scale_label_cross$cosim_matrix)) {
+      scale_label_cross <- scale_label_cross$cosim_matrix
+    }
   }
   n_labels <- ncol(as.matrix(scale_label_cross))
 
@@ -962,7 +969,7 @@ plot_relabeling_robustness <- function(
 #' @param scale_label_cross Numeric scale-by-label similarity matrix used to
 #'   compute panel C label ranks and assignments. Rows are scale ids and
 #'   columns are candidate label ids. It is usually
-#'   `cosim_itens_scales(scale_emb, label_emb)$cosim_matrix`.
+#'   `cosim_xy(scale_emb, label_emb)$matrix`.
 #' @param label_by_scale Named character vector mapping each scale id to its
 #'   original label id. Names must correspond to row names of
 #'   `scale_label_cross`; values must correspond to columns of
