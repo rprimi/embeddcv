@@ -16,8 +16,8 @@ plot_relabeling_figure(
   width = 12,
   height = 15,
   res = 600,
-  label_fun = scale_label_from_scale,
-  instrument_fun = instrument_from_scale,
+  labels = NULL,
+  instrument = NULL,
   fallacy_sum_text = NULL,
   jingle_fallacies_text = NULL,
   jangle_fallacies_text = NULL,
@@ -70,11 +70,12 @@ supplied.}
 \item{res}{Numeric scalar. PNG resolution in pixels per inch when
 \code{output_file} is supplied.}
 
-\item{label_fun}{Function that accepts scale/label ids and returns display
-labels of the same length. Used only when \code{relabeling_panels = NULL}.}
+\item{labels}{Optional named character vector mapping scale/label ids to
+display text. Used only when \code{relabeling_panels = NULL}. If \code{NULL}, ids are
+shown as-is.}
 
-\item{instrument_fun}{Function that accepts scale ids and returns display
-instrument labels of the same length. Used only when
+\item{instrument}{Optional named character vector mapping scale ids to an
+instrument name, appended as \code{"label (instrument)"}. Used only when
 \code{relabeling_panels = NULL}.}
 
 \item{fallacy_sum_text, jingle_fallacies_text, jangle_fallacies_text}{Optional

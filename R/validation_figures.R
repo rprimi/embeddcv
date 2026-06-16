@@ -42,8 +42,8 @@
 #'   matrix in `item_cos`; otherwise the vector must be in the same order as the
 #'   matrix rows.
 #' @param inventory Optional character vector assigning each item to an
-#'   inventory or instrument. If `NULL`, `instrument_from_scale(scale_id)` is
-#'   used. If supplied with names, names are matched to item ids.
+#'   inventory or instrument. If `NULL`, all scales are treated as a single
+#'   inventory. If supplied with names, names are matched to item ids.
 #' @param model_names Optional character vector used to name the similarity
 #'   matrices. When `item_cos` is a named list, those names are used by default.
 #' @param min_scales Integer scalar. Inventories with fewer than this number of
@@ -98,7 +98,7 @@ structural_fidelity <- function(
 
     scale_vec <- embeddcv_match_item_vector(scale_id, item_ids, "scale_id")
     inventory_vec <- if (is.null(inventory)) {
-      instrument_from_scale(scale_vec)
+      rep("all", length(scale_vec))
     } else {
       embeddcv_match_item_vector(inventory, item_ids, "inventory")
     }

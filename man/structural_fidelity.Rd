@@ -24,8 +24,8 @@ matrix in \code{item_cos}; otherwise the vector must be in the same order as the
 matrix rows.}
 
 \item{inventory}{Optional character vector assigning each item to an
-inventory or instrument. If \code{NULL}, \code{instrument_from_scale(scale_id)} is
-used. If supplied with names, names are matched to item ids.}
+inventory or instrument. If \code{NULL}, all scales are treated as a single
+inventory. If supplied with names, names are matched to item ids.}
 
 \item{model_names}{Optional character vector used to name the similarity
 matrices. When \code{item_cos} is a named list, those names are used by default.}

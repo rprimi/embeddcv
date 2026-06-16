@@ -712,6 +712,17 @@ embeddcv_check_labels_scored <- function(labels_scored) {
   invisible(TRUE)
 }
 
+# Resolve display labels for a vector of ids from a named lookup vector.
+# `labels` maps id -> display text; ids absent from it keep their own value.
+# When `labels` is NULL, the ids are returned unchanged.
+embeddcv_resolve_labels <- function(ids, labels = NULL) {
+  ids <- as.character(ids)
+  if (is.null(labels)) return(ids)
+  out <- unname(labels[ids])
+  out[is.na(out)] <- ids[is.na(out)]
+  out
+}
+
 #' Select optimal and parsimonious relabeling solutions
 #'
 #' Selects two representative solutions for each clustering family: the
@@ -965,14 +976,13 @@ plot_relabeling_robustness <- function(
 #' @param solution_type Optional character scalar naming a clustering family to
 #'   select within, such as `"hclust_ward"`, `"kmeans"`, or `"mclust"`. If
 #'   `NULL`, selection is global across all candidate clustering families.
-#' @param label_fun Function that accepts scale/label ids and returns display
-#'   labels of the same length. The default `scale_label_from_scale()` removes
-#'   the instrument prefix, e.g. `"inventory_social_boldness"` becomes
-#'   `"social_boldness"`.
-#' @param instrument_fun Function that accepts scale ids and returns instrument
-#'   labels of the same length. The default `instrument_from_scale()` keeps the
-#'   prefix before the first underscore, e.g. `"inventory_social_boldness"`
-#'   becomes `"inventory"`.
+#' @param labels Optional named character vector mapping scale/label ids to
+#'   display text (used for both the outer scale labels and the inner cluster
+#'   labels). Ids absent from `labels` keep their own value. If `NULL` (default),
+#'   ids are shown as-is.
+#' @param instrument Optional named character vector mapping scale ids to an
+#'   instrument/inventory name. When supplied, outer scale labels become
+#'   `"label (instrument)"`; when `NULL` (default), only the label is shown.
 #' @param palette Character scalar. Palette used when preparing panel C colors.
 #'   Options are
 #'   `"wulff_mata"` (default), `"cividis"`, `"viridis"`, `"magma"`,
@@ -997,8 +1007,8 @@ prepare_relabeling_panels <- function(
     max_constructs = 100,
     solution = c("parsimonious", "optimal"),
     solution_type = NULL,
-    label_fun = scale_label_from_scale,
-    instrument_fun = instrument_from_scale,
+    labels = NULL,
+    instrument = NULL,
     palette = "wulff_mata",
     verbose = TRUE) {
 
@@ -1012,8 +1022,8 @@ prepare_relabeling_panels <- function(
     max_constructs = max_constructs,
     solution = solution,
     solution_type = solution_type,
-    label_fun = label_fun,
-    instrument_fun = instrument_fun,
+    labels = labels,
+    instrument = instrument,
     palette = palette
   )
 
@@ -1285,10 +1295,13 @@ prepare_relabeling_panel_b <- function(labels_scored, max_constructs = 100) {
 #' @param solution_type Optional character scalar naming a clustering family to
 #'   select within, such as `"hclust_ward"`, `"kmeans"`, or `"mclust"`. If
 #'   `NULL`, selection is global across candidate families.
-#' @param label_fun Function that accepts scale/label ids and returns display
-#'   labels of the same length.
-#' @param instrument_fun Function that accepts scale ids and returns display
-#'   instrument labels of the same length.
+#' @param labels Optional named character vector mapping scale/label ids to
+#'   display text (used for both the outer scale labels and the inner cluster
+#'   labels). Ids absent from `labels` keep their own value. If `NULL` (default),
+#'   ids are shown as-is.
+#' @param instrument Optional named character vector mapping scale ids to an
+#'   instrument/inventory name. When supplied, outer scale labels become
+#'   `"label (instrument)"`; when `NULL` (default), only the label is shown.
 #' @param palette Character scalar. Palette used for label groups. Options are
 #'   `"wulff_mata"` (default), `"cividis"`, `"viridis"`, `"magma"`,
 #'   `"plasma"`, `"inferno"`, `"okabe_ito"`, and `"blue_gold"`.
@@ -1313,8 +1326,8 @@ prepare_relabeling_panel_c <- function(
     max_constructs = 100,
     solution = c("parsimonious", "optimal"),
     solution_type = NULL,
-    label_fun = scale_label_from_scale,
-    instrument_fun = instrument_from_scale,
+    labels = NULL,
+    instrument = NULL,
     palette = "wulff_mata") {
 
   solution <- match.arg(solution)
@@ -1340,7 +1353,20 @@ prepare_relabeling_panel_c <- function(
     scale = names(labels_final),
     stringsAsFactors = FALSE
   )
-  assignment_tbl$scale_name <- paste0(label_fun(assignment_tbl$scale), " (", instrument_fun(assignment_tbl$scale), ")")
+  # Outer (scale) display labels from the `labels` lookup (ids kept as-is when
+  # absent or when labels = NULL). Append " (instrument)" only when an
+  # `instrument` lookup is supplied and has a non-empty value for that scale.
+  scale_label_disp <- embeddcv_resolve_labels(assignment_tbl$scale, labels)
+  if (is.null(instrument)) {
+    assignment_tbl$scale_name <- scale_label_disp
+  } else {
+    instr <- unname(instrument[assignment_tbl$scale])
+    assignment_tbl$scale_name <- ifelse(
+      is.na(instr) | instr == "",
+      scale_label_disp,
+      paste0(scale_label_disp, " (", instr, ")")
+    )
+  }
   count_tbl <- table(labels_final)
   assignment_tbl$n <- as.integer(count_tbl[assignment_tbl$label_name])
   assignment_tbl$label_original <- label_by_scale[assignment_tbl$scale]
@@ -1375,10 +1401,16 @@ prepare_relabeling_panel_c <- function(
 
   outer <- t(sapply(assignment_tbl$deg, function(x) embeddcv_circle_point(x, 1)))
   outer_text <- t(sapply(assignment_tbl$deg, function(x) embeddcv_circle_point(x, 1.02)))
-  rownames(outer) <- rownames(outer_text) <- assignment_tbl$scale_name
+  # Key the outer points by the unique scale id (scale_name display labels can
+  # repeat across scales). The display text is taken from scale_name at draw time.
+  rownames(outer) <- rownames(outer_text) <- assignment_tbl$scale
   inner <- t(sapply(label_deg$deg, function(x) embeddcv_circle_point(x, .5)))
   inner_text <- t(sapply(label_deg$deg, function(x) embeddcv_circle_point(x, .55)))
   rownames(inner) <- rownames(inner_text) <- label_deg$label_name
+
+  # Precompute inner (cluster) display labels in inner-row order, so the plot
+  # function does not need a label function.
+  inner_display <- capitalize_first(embeddcv_resolve_labels(label_deg$label_name, labels))
 
   list(
     solution = dat[1, , drop = FALSE],
@@ -1391,8 +1423,8 @@ prepare_relabeling_panel_c <- function(
     outer_text = outer_text,
     inner = inner,
     inner_text = inner_text,
-    cols = cols,
-    label_fun = label_fun
+    inner_display = inner_display,
+    cols = cols
   )
 }
 
@@ -1642,7 +1674,7 @@ plot_relabeling_panel_b <- function(panel_b, panel_letter = "B", palette = "wulf
 #'
 #' @param panel_c List returned by `prepare_relabeling_panel_c()`. It must
 #'   contain `assignment_tbl`, `label_deg`, outer/inner circle coordinates,
-#'   color mapping, and the display `label_fun`.
+#'   color mapping, and the precomputed inner display labels.
 #' @param panel_letter Character scalar used as the panel label, usually `"C"`.
 #'   Use `NULL` to suppress it.
 #' @param palette Optional character scalar palette override for label groups.
@@ -1679,8 +1711,8 @@ plot_relabeling_panel_c <- function(panel_c, panel_letter = "C", palette = NULL)
   outer_text <- panel_c$outer_text
   inner <- panel_c$inner
   inner_text <- panel_c$inner_text
+  inner_display <- panel_c$inner_display
   cols <- panel_c$cols
-  label_fun <- panel_c$label_fun
 
   if (!is.null(palette)) {
     label_names <- names(cols)
@@ -1698,7 +1730,7 @@ plot_relabeling_panel_c <- function(panel_c, panel_letter = "C", palette = NULL)
                         ylim = c(-1 - lim + yshift, 1 + lim + yshift))
 
   for (i in seq_len(nrow(assignment_tbl))) {
-    pair <- c(assignment_tbl$label_name[i], assignment_tbl$scale_name[i])
+    pair <- c(assignment_tbl$label_name[i], assignment_tbl$scale[i])
     p1 <- outer[pair[2], ]
     p2 <- inner[pair[1], ]
     graphics::lines(c(p1[1], p2[1]), c(p1[2], p2[2]), lwd = 1,
@@ -1707,7 +1739,7 @@ plot_relabeling_panel_c <- function(panel_c, panel_letter = "C", palette = NULL)
   }
 
   for (i in seq_len(nrow(assignment_tbl))) {
-    pair <- c(assignment_tbl$label_name[i], assignment_tbl$scale_name[i])
+    pair <- c(assignment_tbl$label_name[i], assignment_tbl$scale[i])
     n <- assignment_tbl$n[i]
     elements <- strsplit(pair[1], "\n", fixed = TRUE)[[1]]
     width <- max(graphics::strwidth(elements))
@@ -1728,7 +1760,8 @@ plot_relabeling_panel_c <- function(panel_c, panel_letter = "C", palette = NULL)
   for (i in seq_len(nrow(outer))) {
     rot <- 90
     ang <- embeddcv_rev_angle(embeddcv_rotate(assignment_tbl$deg[i], rot))
-    graphics::text(outer_text[i, 1], outer_text[i, 2], labels = rownames(outer)[i],
+    graphics::text(outer_text[i, 1], outer_text[i, 2],
+                   labels = assignment_tbl$scale_name[i],
                    srt = ang,
                    adj = ifelse(embeddcv_test_angle(embeddcv_rotate(assignment_tbl$deg[i], rot)), 0, 1),
                    cex = .4)
@@ -1738,7 +1771,7 @@ plot_relabeling_panel_c <- function(panel_c, panel_letter = "C", palette = NULL)
   for (i in seq_len(nrow(inner))) {
     n_i <- label_deg$n[i]
     graphics::text(inner_text[i, 1], inner_text[i, 2],
-                   labels = capitalize_first(label_fun(rownames(inner)[i])),
+                   labels = inner_display[i],
                    srt = embeddcv_rev_angle(embeddcv_rotate(label_deg$deg[i], 90)),
                    adj = ifelse(embeddcv_test_angle(embeddcv_rotate(label_deg$deg[i], 90)), 0, 1),
                    cex = n_i^.4 / 2 - .3, font = 1)
@@ -1820,10 +1853,11 @@ plot_relabeling_panel_c <- function(panel_c, panel_letter = "C", palette = NULL)
 #'   supplied.
 #' @param res Numeric scalar. PNG resolution in pixels per inch when
 #'   `output_file` is supplied.
-#' @param label_fun Function that accepts scale/label ids and returns display
-#'   labels of the same length. Used only when `relabeling_panels = NULL`.
-#' @param instrument_fun Function that accepts scale ids and returns display
-#'   instrument labels of the same length. Used only when
+#' @param labels Optional named character vector mapping scale/label ids to
+#'   display text. Used only when `relabeling_panels = NULL`. If `NULL`, ids are
+#'   shown as-is.
+#' @param instrument Optional named character vector mapping scale ids to an
+#'   instrument name, appended as `"label (instrument)"`. Used only when
 #'   `relabeling_panels = NULL`.
 #' @param fallacy_sum_text,jingle_fallacies_text,jangle_fallacies_text Optional
 #'   named lists passed to `plot_relabeling_panel_a()`. Each list can contain
@@ -1881,8 +1915,8 @@ plot_relabeling_figure <- function(
     width = 12,
     height = 15,
     res = 600,
-    label_fun = scale_label_from_scale,
-    instrument_fun = instrument_from_scale,
+    labels = NULL,
+    instrument = NULL,
     fallacy_sum_text = NULL,
     jingle_fallacies_text = NULL,
     jangle_fallacies_text = NULL,
@@ -1899,6 +1933,15 @@ plot_relabeling_figure <- function(
 
   solution <- match.arg(solution)
 
+  # Convenience: allow plot_relabeling_figure(panels) where `panels` is the
+  # output of prepare_relabeling_panels() passed positionally. Route it to
+  # `relabeling_panels` instead of treating it as `labels_scored`.
+  if (is.null(relabeling_panels) &&
+      inherits(labels_scored, "embeddcv_relabeling_panels")) {
+    relabeling_panels <- labels_scored
+    labels_scored <- NULL
+  }
+
   if (is.null(relabeling_panels)) {
     relabeling_panels <- prepare_relabeling_panels(
       labels_scored = labels_scored,
@@ -1907,8 +1950,8 @@ plot_relabeling_figure <- function(
       max_constructs = max_constructs,
       solution = solution,
       solution_type = solution_type,
-      label_fun = label_fun,
-      instrument_fun = instrument_fun,
+      labels = labels,
+      instrument = instrument,
       palette = palette
     )
   }

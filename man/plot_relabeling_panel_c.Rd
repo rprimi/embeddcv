@@ -9,7 +9,7 @@ plot_relabeling_panel_c(panel_c, panel_letter = "C", palette = NULL)
 \arguments{
 \item{panel_c}{List returned by \code{prepare_relabeling_panel_c()}. It must
 contain \code{assignment_tbl}, \code{label_deg}, outer/inner circle coordinates,
-color mapping, and the display \code{label_fun}.}
+color mapping, and the precomputed inner display labels.}
 
 \item{panel_letter}{Character scalar used as the panel label, usually \code{"C"}.
 Use \code{NULL} to suppress it.}

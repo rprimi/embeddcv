@@ -11,8 +11,8 @@ prepare_relabeling_panel_c(
   max_constructs = 100,
   solution = c("parsimonious", "optimal"),
   solution_type = NULL,
-  label_fun = scale_label_from_scale,
-  instrument_fun = instrument_from_scale,
+  labels = NULL,
+  instrument = NULL,
   palette = "wulff_mata"
 )
 }
@@ -41,11 +41,14 @@ without that restriction.}
 select within, such as \code{"hclust_ward"}, \code{"kmeans"}, or \code{"mclust"}. If
 \code{NULL}, selection is global across candidate families.}
 
-\item{label_fun}{Function that accepts scale/label ids and returns display
-labels of the same length.}
+\item{labels}{Optional named character vector mapping scale/label ids to
+display text (used for both the outer scale labels and the inner cluster
+labels). Ids absent from \code{labels} keep their own value. If \code{NULL} (default),
+ids are shown as-is.}
 
-\item{instrument_fun}{Function that accepts scale ids and returns display
-instrument labels of the same length.}
+\item{instrument}{Optional named character vector mapping scale ids to an
+instrument/inventory name. When supplied, outer scale labels become
+\code{"label (instrument)"}; when \code{NULL} (default), only the label is shown.}
 
 \item{palette}{Character scalar. Palette used for label groups. Options are
 \code{"wulff_mata"} (default), \code{"cividis"}, \code{"viridis"}, \code{"magma"},

@@ -185,51 +185,6 @@ get_item_scale_cos <- function(cos, scale_id, self_cutoff = .999999) {
   out
 }
 
-#' Extract the construct label from a scale id
-#'
-#' Removes the first underscore-separated token from a scale id and keeps the
-#' remaining construct portion. It assumes ids are written as
-#' `instrument_construct`, where the first token is an instrument, inventory, or
-#' source prefix and the rest is the construct name. This is only a display
-#' helper; it does not harmonize names, correct spelling, or perform fuzzy
-#' matching.
-#'
-#' @param x Character vector of scale ids, such as
-#'   `"inventory_assertiveness"` or `"source_need_for_structure"`.
-#'
-#' @return Character vector without the instrument prefix, for example
-#'   `"assertiveness"` or `"need_for_structure"`.
-#'
-#' @examples
-#' scale_label_from_scale(c("inventory_assertiveness", "source_need_for_structure"))
-#' scale_label_from_scale("personality_social_confidence")
-#' @export
-scale_label_from_scale <- function(x) {
-  parts <- strsplit(as.character(x), "_", fixed = TRUE)
-  vapply(parts, function(z) {
-    if (length(z) <= 1) return(z[1])
-    paste(z[-1], collapse = "_")
-  }, character(1))
-}
-
-#' Extract the instrument prefix from a scale id
-#'
-#' Keeps the first underscore-separated token from a scale id. This is commonly
-#' used to recover short instrument labels from ids that combine instrument and
-#' construct names.
-#'
-#' @param x Character vector such as `"inventory_assertiveness"`.
-#'
-#' @return Character vector with the prefix before the first underscore.
-#'
-#' @examples
-#' instrument_from_scale(c("inventory_assertiveness", "source_need_for_structure"))
-#' instrument_from_scale("personality_social_confidence")
-#' @export
-instrument_from_scale <- function(x) {
-  vapply(strsplit(as.character(x), "_", fixed = TRUE), `[`, character(1), 1)
-}
-
 #' Shorten text labels with ellipses
 #'
 #' Truncates long labels for dense plots while keeping short labels unchanged.
