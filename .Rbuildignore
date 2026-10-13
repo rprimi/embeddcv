@@ -11,3 +11,7 @@
 ^AGENTS\.md$
 ^doc$
 ^Meta$
+^data-raw$
+^vignettes/.*\.orig$
+^vignettes/precompile\.R$
+^vignettes/emb_cache$

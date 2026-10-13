@@ -17,3 +17,5 @@ vignettes/*.html
 vignettes/*.R
 /doc/
 /Meta/
+!vignettes/precompile.R
+vignettes/emb_cache/

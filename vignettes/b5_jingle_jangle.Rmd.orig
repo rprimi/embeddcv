@@ -1,0 +1,415 @@
+---
+title: "Jingle-jangle in Big Five inventories: empirical scales vs. authors' definitions"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{Jingle-jangle in Big Five inventories: empirical scales vs. authors' definitions}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+<!-- This vignette is precompiled: edit b5_jingle_jangle.Rmd.orig and run
+     vignettes/precompile.R. It needs a local Python with
+     sentence-transformers (or an OpenAI API key), so it is not run when the
+     package is built. -->
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE, comment = "#>", warning = FALSE, message = FALSE,
+  fig.path = "figures/b5_jingle_jangle-", fig.width = 8, fig.height = 5,
+  dpi = 96
+)
+options(width = 90)
+```
+
+## Idea
+
+Run the Wulff & Mata (2025) jingle-jangle + relabeling pipeline on four Big Five inventories: **BFI-2**, **Big Five Aspect Scales**, **FacetMap** and **SENNA**.
+
+-   **scale side** = empirical scale embeddings (average of the item embeddings of each facet scale);
+-   **label side** = the authors' definitions of each facet scale.
+
+A scale is identified by `test_domain_facet` (e.g. `bfi2_O_aes`). Its short display label is the facet name (e.g. *Aesthetic Sensitivity*), shown as `facet name (test)` in the plots.
+
+*Jangle* here means: two scales whose items look alike but whose definitions differ. *Jingle* means: two scales whose items look different but whose definitions are alike.
+
+## Libraries
+
+```{r}
+#| label: libraries
+# remotes::install_github("rprimi/embeddcv")
+library(tidyverse)
+library(embeddcv)
+```
+
+## Data
+
+The package includes `b5_items` (one row per item) and `b5_scales` (one row per facet scale, with the authors' definition).
+
+```{r}
+#| label: data
+items  <- b5_items
+scales <- b5_scales
+
+# scale id = test_domain_facet
+items <- items %>%
+  mutate(scale_id = paste(test, domain, facet, sep = "_"))
+
+# keep only scales that have items (7 FacetMap scales have no items)
+definitions <- scales %>%
+  filter(n_items > 0) %>%
+  mutate(scale_id = paste(test, domain, facet, sep = "_")) %>%
+  select(scale_id, test, domain, facet, facet_name, definition, n_items)
+
+# every item scale has a definition, and vice versa
+stopifnot(setequal(unique(items$scale_id), definitions$scale_id))
+
+definitions %>% count(test)
+```
+
+## 1. Prepare embeddings
+
+Choose the embedding model. Wulff & Mata (2025) used `mpnet-personality`, a sentence transformer fine-tuned on personality items; `openai` uses `text-embedding-3-small`. Embeddings are cached in `emb_cache/`.
+
+```{r}
+#| label: model
+emb_model <- "mpnet"   # "mpnet" or "openai"
+
+embed <- function(text) {
+  switch(emb_model,
+    mpnet  = {
+      reticulate::py_require(c("sentence-transformers", "torch"))
+      get_embeddings(text, provider = "huggingface_local",
+                     model = "dwulff/mpnet-personality")
+    },
+    openai = get_embeddings(text, provider = "openai",
+                            model = "text-embedding-3-small"))
+}
+
+cached_embeddings <- function(file, text) {
+  path <- file.path("emb_cache", paste0(file, "_", emb_model, ".rds"))
+  if (file.exists(path)) return(readRDS(path))
+  dir.create("emb_cache", showWarnings = FALSE)
+  emb <- embed(text)
+  saveRDS(emb, path)
+  emb
+}
+
+# folder for the PNG figures written by the base-graphics plots
+out_dir <- "figures"
+dir.create(out_dir, showWarnings = FALSE)
+```
+
+```{r}
+#| label: prepare
+# Items + the scale each item belongs to.
+items_emb <- as.matrix(cached_embeddings("b5_items", items$item_en_text))
+rownames(items_emb) <- paste(items$test, items$coditem, sep = "_")
+
+count(items, test)
+
+# SCALE side: empirical scale embedding = mean of its item embeddings.
+# Rownames = scale ids (test_domain_facet).
+scale_emb <- get_scale_embeddings(items_emb, items$scale_id)
+
+# LABEL side: definition embeddings (authors' facet definitions).
+# Rownames = scale ids too, so a scale's label id is its own scale id.
+definitions_emb <- as.matrix(cached_embeddings("b5_definitions", definitions$definition))
+rownames(definitions_emb) <- definitions$scale_id
+
+# put scale_emb in the same order as the definitions
+scale_emb <- scale_emb[definitions$scale_id, ]
+stopifnot(identical(rownames(scale_emb), rownames(definitions_emb)))
+
+# Each scale's label is its own definition (identity map over ids).
+definitions_by_scale <- setNames(definitions$scale_id, definitions$scale_id)
+
+# DISPLAY only: short label (facet name) and instrument (test) per scale.
+# Different tests can share a short label (e.g. "Assertiveness"); the
+# instrument suffix keeps them apart in the plots.
+short_by_scale      <- setNames(definitions$facet_name, definitions$scale_id)
+instrument_by_scale <- setNames(definitions$test, definitions$scale_id)
+
+dim(scale_emb)
+dim(definitions_emb)
+```
+
+## 2. Similarity matrices
+
+```{r}
+#| label: similarity
+#| fig-width: 8
+#| fig-height: 5
+# Content similarity between scales (empirical, item-based).
+scale_cos <- cosine_matrix(scale_emb)
+
+# Definition similarity = similarity between the authors' definitions.
+definitions_cos <- cosine_matrix(definitions_emb)
+
+# Scale x definition cross-similarity: the weights used to assign a
+# definition to each cluster in the relabeling step.
+scale_definitions <- cosim_xy(
+  scale_emb, definitions_emb,
+  x_type = "scale", y_type = "definition", make_plot = TRUE
+)
+scale_definitions_cross <- scale_definitions$matrix
+
+plot_similarity_distribution(scale_cos, title = "Scale-scale (items)")
+plot_similarity_distribution(definitions_cos, title = "Definition-definition")
+plot_similarity_distribution(scale_definitions_cross, matrix_triangle = "all",
+                             title = "Scale x definition")
+```
+
+How well does each scale's item content match its own definition? The diagonal of the cross matrix is the similarity of each scale with its own definition; we compare it with the scale's similarity to all other definitions.
+
+```{r}
+#| label: self-match
+self_match <- tibble(
+  scale_id = rownames(scale_definitions_cross),
+  own_def  = diag(scale_definitions_cross)
+) %>%
+  mutate(rank_own = map_int(scale_id, ~ as.integer(rank(-scale_definitions_cross[.x, ])[[.x]])),
+         best_def = colnames(scale_definitions_cross)[apply(scale_definitions_cross, 1, which.max)],
+         test     = instrument_by_scale[scale_id],
+         facet    = short_by_scale[scale_id],
+         best_def_label = paste0(short_by_scale[best_def], " (", instrument_by_scale[best_def], ")"))
+
+# share of scales whose own definition is the best-matching definition, by test
+self_match %>%
+  group_by(test) %>%
+  summarise(n = n(), own_is_best = mean(rank_own == 1), median_rank = median(rank_own),
+            mean_cos_own = mean(own_def))
+
+# scales that best match another scale's definition
+self_match %>%
+  filter(rank_own > 1) %>%
+  select(test, facet, rank_own, best_def_label) %>%
+  arrange(desc(rank_own))
+```
+
+## 3. Jingle-jangle classification
+
+```{r}
+#| label: jingle-jangle
+#| fig-width: 9
+#| fig-height: 7
+# Pair table: one row per scale pair, with content sim (scale_cos) and
+# definition sim (definitions_cos). `labels` and `instrument` set the text
+# shown in the plots: "facet name (test)".
+jj_base <- jingle_jangle_pairs(
+  scale_cos, definitions_cos,
+  label_by_scale = definitions_by_scale,
+  labels         = short_by_scale[rownames(scale_cos)],
+  instrument     = instrument_by_scale[rownames(scale_cos)]
+)
+
+# Cutoffs from the similarity distributions. min_constructs = 1.333 and
+# max_constructs = 4 give the .25 / .75 quantiles (Wulff & Mata used 5 / 100,
+# i.e. .80 / .99).
+thresholds <- jingle_jangle_thresholds(
+  scale_cos, definitions_cos,
+  min_constructs = 1.333, max_constructs = 4
+)
+thresholds
+
+# Tag each pair as jingle / jangle / nothing.
+jj <- classify_jingle_jangle(jj_base, thresholds)
+
+count(jj, type)
+
+plot_jingle_jangle_scatter(
+  jj, show_threshold_note = TRUE, threshold_rule = "quartile"
+)
+
+# base-graphics figure written to a PNG file
+plot_jingle_jangle(jj, thresholds, res = 150,
+                   output_file = file.path(out_dir, "b5_jingle_jangle-selected.png"))
+```
+
+```{r}
+#| label: jj-display
+#| echo: false
+#| out-width: 100%
+knitr::include_graphics(file.path(out_dir, "b5_jingle_jangle-selected.png"))
+```
+
+Jingle and jangle pairs between **different tests** are the most informative: they show where the tests use different names for the same content, or the same names for different content. Note that most jingles occur **within** a test: definitions written by the same authors share a style (e.g. all FacetMap definitions start with "Propensity to ..."), which inflates their similarity even when the items differ.
+
+```{r}
+#| label: jj-tables
+jj_pairs <- jj %>%
+  filter(type %in% c("Jingle fallacy", "Jangle fallacy")) %>%
+  mutate(between_tests = instrument_1 != instrument_2)
+
+count(jj_pairs, type, between_tests)
+
+jj_pairs %>%
+  filter(between_tests) %>%
+  transmute(type,
+            scale_1 = paste0(label_1, " (", instrument_1, ")"),
+            scale_2 = paste0(label_2, " (", instrument_2, ")"),
+            item_sim = scale_cos, definition_sim = label_cos) %>%
+  arrange(type, desc(abs(item_sim - definition_sim))) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 2)))
+```
+
+## 4. Relabeling
+
+The reference taxonomies are (a) the original one, where each scale keeps its own definition, and (b) a Big Five taxonomy, where scales are grouped by domain (O, C, E, A, N).
+
+```{r}
+#| label: relabeling
+# (a) original taxonomy: each scale keeps its own definition
+original_solution <- definitions_by_scale[rownames(scale_cos)]
+original_score <- score_label_solution(original_solution, scale_cos,
+                                       definitions_cos, thresholds)
+original_score
+
+# (b) Big Five domains as the reference clustering ("original_b5")
+b5_solution <- setNames(definitions$domain, definitions$scale_id)[rownames(scale_cos)]
+
+# Candidate taxonomies: cluster the empirical scale similarity for each k.
+solutions <- make_relabeling_clustering_solutions(
+  scale_cos         = scale_cos,
+  k_seq             = 2:(nrow(scale_cos) - 1),
+  original_solution = b5_solution,
+  include_mclust    = TRUE,
+  include_louvain   = TRUE,
+  seed              = 42
+)
+
+# Relabel each cluster with its best-fitting definition, then count fallacies.
+scored <- score_relabeling_solutions(solutions, scale_definitions_cross,
+                                     scale_cos, definitions_cos, thresholds)
+
+# Big Five reference, relabeled with the best definition per domain
+scored %>% filter(type == "original_b5") %>% select(type, k, jingle, jangle, fallacy_sum)
+
+# Best (optimal) and most parsimonious solution per algorithm family.
+max_constructs <- 40
+selection <- select_relabeling_solutions(scored, max_constructs = max_constructs)
+selection %>% select(type, selection, k, jingle, jangle, fallacy_sum)
+```
+
+## 5. Figures: fallacies per number of clusters
+
+```{r}
+#| label: figures
+# Three-panel relabeling figure (A: scale-definition fit, B: fallacies by k
+# with optimal/parsimonious markers, C: the selected relabeled taxonomy).
+panels <- prepare_relabeling_panels(
+  labels_scored     = scored,
+  scale_label_cross = scale_definitions_cross,
+  label_by_scale    = definitions_by_scale,
+  max_constructs    = max_constructs,
+  palette           = "magma",
+  labels            = short_by_scale,
+  instrument        = instrument_by_scale
+)
+
+plot_relabeling_figure(relabeling_panels = panels, res = 150,
+                       output_file = file.path(out_dir, "b5_jingle_jangle-relabeling.png"),
+                       max_constructs = max_constructs, palette = "magma")
+
+# Robustness: fallacy_sum as a function of k, one curve per clustering
+# algorithm, with the original taxonomy as reference.
+plot_relabeling_robustness(
+  scored,
+  original_fallacy_sum = original_score[["fallacy_sum"]]
+)
+```
+
+```{r}
+#| label: figures-display
+#| echo: false
+#| out-width: 100%
+knitr::include_graphics(file.path(out_dir, "b5_jingle_jangle-relabeling.png"))
+```
+
+## 6. Extract cluster solutions as tidy tables
+
+Where the solutions are stored:
+
+-   `solutions[[type]][[i]]`: the raw clustering, a named vector (names = scale ids, values = **cluster number**), one per k.
+-   `scored$label_vectors[[row]]`: the **relabeled** solution, a named vector (names = scale ids, values = **assigned label id**), one row per (type, k). Scales that share an assigned label form one cluster.
+-   `selection`: the same, restricted to the Optimal / Parsimonious rows.
+
+```{r}
+#| label: extract-solutions
+# Turn ONE solution (a named label vector) into a tidy table:
+# scale id -> cluster number -> assigned label (id + short label).
+solution_table <- function(label_vector) {
+  tibble(
+    scale_id          = names(label_vector),
+    assigned_label_id = unname(label_vector)
+  ) |>
+    mutate(
+      cluster          = dense_rank(assigned_label_id),
+      test             = unname(instrument_by_scale[scale_id]),
+      scale_short      = unname(short_by_scale[scale_id]),
+      assigned_short   = unname(short_by_scale[assigned_label_id]),
+      assigned_test    = unname(instrument_by_scale[assigned_label_id])
+    ) |>
+    arrange(cluster, test, scale_short)
+}
+
+# (a) One specific solution by algorithm and k
+row_idx <- which(scored$type == "hclust_ward" & scored$k == 30)
+sol_one <- solution_table(scored$label_vectors[[row_idx]])
+
+# (b) The PARSIMONIOUS solution of the best family
+par_row <- selection |>
+  filter(selection == "Parsimonious") |>
+  slice_min(fallacy_sum, n = 1, with_ties = FALSE)
+sol_par <- solution_table(par_row$label_vectors[[1]])
+
+par_row |> select(type, k, jingle, jangle, fallacy_sum)
+
+# clusters of the parsimonious solution: which scales from which tests?
+sol_par |>
+  group_by(cluster, assigned = paste0(assigned_short, " (", assigned_test, ")")) |>
+  summarise(n_scales = n(),
+            tests    = paste(sort(unique(test)), collapse = ", "),
+            scales   = paste0(scale_short, " (", test, ")", collapse = "; "),
+            .groups  = "drop")
+
+# All selected solutions stacked into one long table
+solutions_long <- selection |>
+  mutate(solution_id = paste0(type, "_", selection, "_k", k)) |>
+  transmute(solution_id, type, k, selection, label_vectors) |>
+  mutate(tbl = map(label_vectors, solution_table)) |>
+  select(-label_vectors) |>
+  unnest(tbl)
+```
+
+## 7. Merge a solution back to definitions and items
+
+```{r}
+#| label: merge-solutions
+sol <- sol_par
+
+# one row per scale/definition
+sol_definitions <- sol |>
+  left_join(select(definitions, scale_id, domain, facet, definition, n_items),
+            by = "scale_id")
+
+# one row per item: each item inherits its scale's cluster and assigned label
+sol_items <- items |>
+  left_join(select(sol, scale_id, cluster, assigned_label_id, assigned_short, assigned_test),
+            by = "scale_id")
+
+glimpse(sol_definitions)
+
+# save the results, e.g.
+# writexl::write_xlsx(
+#   list(definitions = sol_definitions, items = sol_items,
+#        jingle_jangle = jj_pairs, self_match = self_match,
+#        solutions_long = solutions_long),
+#   "b5_relabeling_results.xlsx"
+# )
+```
+
+## References
+
+-   Wulff, D. U., & Mata, R. (2025). Semantic embeddings reveal and address taxonomic incommensurability in psychological measurement. *Nature Human Behaviour, 9*(5), 944–954. https://doi.org/10.1038/s41562-024-02089-y
