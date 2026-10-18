@@ -19,6 +19,7 @@ empirical_relabeling(
   min_words = 12,
   max_words = 60,
   definition_template = NULL,
+  jingle_patience = 1,
   transform = c("none", "rescale", "percentile"),
   test_col = NULL,
   center_by_test = FALSE,
@@ -58,6 +59,16 @@ scales are represented by the items closest to the scale centroid.}
 definitions, e.g. \code{\link[=definition_template]{definition_template()}}. Use the same template as for
 the original definitions when they were harmonized with
 \code{\link[=harmonize_definitions]{harmonize_definitions()}}, so all definitions share one format.}
+
+\item{jingle_patience}{Maximum number of times the same pair of scales is
+contrasted. With \code{1} (default) a pair gets one rewrite; if it is still a
+jingle afterwards it is unresolved (see \code{unresolved} in the output). The
+first rewrite usually resolves the jingle; repeated rewrites of the same
+pair tend to return the same definitions and loop. Use \code{2} for a second
+try, \code{Inf} for no limit, and \code{0} to turn contrasts off: only jangle
+pairs are treated (merge-only), and the original definitions stay
+untouched except where scales merge. A merged scale is a new scale, so
+its pairs start again at zero.}
 
 \item{transform}{How similarities are reported: \code{"none"} (raw cosines),
 \code{"rescale"} or \code{"percentile"} (see \code{\link[=transform_similarity]{transform_similarity()}}). Applied to
@@ -104,7 +115,12 @@ label a scale ever had.}
 \item{\code{scales_by_step}}{\code{step}, \code{scale_id}, \code{label_id}, \code{n_items},
 \code{own_cos} (similarity of the scale with its own definition),
 \code{own_rank} (rank of its own definition among all definitions).}
-\item{\code{pairs}}{Classified scale pairs of every step.}
+\item{\code{pairs}}{Classified scale pairs of every step, with \code{contrasts}
+(times the pair has been contrasted so far) and \code{unresolved} (a jingle
+that has reached \code{jingle_patience}).}
+\item{\code{unresolved}}{Jingle pairs of the last step that reached
+\code{jingle_patience}: scales whose definitions stay alike, even after being
+rewritten to differ, although their items differ.}
 \item{\code{thresholds}}{Cutoffs of every step.}
 \item{\code{actions}}{One row per LLM call: \code{step}, \code{action}, \code{scale_1},
 \code{scale_2}, \code{new_scale}, the pair similarities, and the \code{prompt}.}
@@ -129,14 +145,18 @@ that step.
 \item \strong{Jangle} pairs (similar items, different definitions) are merged:
 their items are combined into one new scale, and the LLM writes its
 label and definition from the combined items.
-\item \strong{Jingle} pairs (different items, similar definitions) are relabeled:
-the LLM writes new labels and definitions for both scales, closer to
-their items and more distinct from each other.
+\item \strong{Jingle} pairs (different items, similar definitions) are relabeled
+(contrasted): the LLM writes new labels and definitions for both
+scales, closer to their items and more distinct from each other. A pair
+is contrasted at most \code{jingle_patience} times; if it is still a jingle
+after that, it is reported as unresolved instead of being sent back to
+the LLM.
 \item The new definitions are embedded and the next step starts.
 }
 
 A scale enters at most one action per step: pairs are taken in order of
 the largest gap between scale and label similarity, skipping pairs whose
 scales were already used, and scales merged in a step are not also
-contrasted in that step. The loop stops early when no fallacies are left.
+contrasted in that step. The loop stops early when there is nothing left
+to act on: no jangle pairs and no jingle pairs below their patience.
 }

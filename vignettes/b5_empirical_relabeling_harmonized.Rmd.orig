@@ -360,6 +360,8 @@ The LLM writes the new definitions with the same template as the harmonized ones
 
 A scale enters at most one action per step. Pairs are taken in order of the gap between item similarity and definition similarity, skipping pairs whose scales were already used, so each step merges disjoint pairs. Because the scales keep merging, many steps lead toward a few broad scales.
 
+**How often a jingle is contrasted: `jingle_patience`.** A pair of scales is contrasted at most `jingle_patience` times. The first rewrite usually resolves the jingle; when it does not, rewriting the same pair again tends to return the same definitions, and the pipeline would loop. With `jingle_patience = 1` (default) a pair gets one rewrite; if it is still a jingle afterwards it is reported as **unresolved** (`relabel$unresolved`): its definitions stay alike, even after being rewritten to differ, although its items differ. Use `2` for a second try, `Inf` for no limit, and `0` to turn contrasts off and treat only jangles (merge-only). Merge-only keeps the authors' definitions untouched except where scales merge, and uses far fewer LLM calls, but jingles are never addressed: it answers the narrower question *which scales are redundant?*
+
 ```{r}
 #| label: relabel-settings
 n_steps <- 12
@@ -384,6 +386,7 @@ relabel <- empirical_relabeling(
   model     = llm_model,
   chat_args = llm_args,
   definition_template = definition_template(),
+  jingle_patience = 1,
   test_col  = "test",
   cache_dir = relabel_cache
 )
@@ -555,6 +558,35 @@ relabel$labels %>%
 cat(one$prompt)
 ```
 
+### Unresolved jingles
+
+Pairs that are still jingles after `jingle_patience` rewrites. `contrasts` is how many times the pair was contrasted (0 for scales never contrasted, e.g. with `jingle_patience = 0`).
+
+```{r}
+#| label: unresolved
+relabel$unresolved %>%
+  select(label_1, label_2, item_sim = scale_cos, definition_sim = label_cos, contrasts) %>%
+  mutate(across(where(is.double), ~ round(.x, 2)))
+
+# per step: jingles left unresolved
+relabeling_summary(relabel) %>% select(step, jingle, jingle_unresolved)
+```
+
+A merge-only run, for comparison (not run here):
+
+```{r}
+#| label: merge-only
+#| eval: false
+relabel_merge_only <- empirical_relabeling(
+  items = relabel_items, scales = relabel_scales,
+  item_emb = items_emb, def_emb = definitions_emb, embed_fun = embed,
+  n_steps = n_steps, provider = llm_provider, model = llm_model,
+  jingle_patience = 0, definition_template = definition_template(),
+  test_col = "test", cache_dir = relabel_cache
+)
+relabel_merge_only$unresolved   # every jingle left at the end
+```
+
 ## 10. Save results
 
 Not run here: this writes an Excel file and the plots to `out_dir`.
@@ -576,6 +608,7 @@ writexl::write_xlsx(
        final_scales   = final_scales,
        items_by_step  = items_by_step,
        actions        = relabel$actions,
+       unresolved     = relabel$unresolved,
        pairs          = relabel$pairs %>% filter(type != "nothing")),
   file.path(out_dir, "b5_empirical_relabeling_harmonized.xlsx")
 )

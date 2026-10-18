@@ -839,6 +839,8 @@ The LLM writes the new definitions with the same template as the harmonized ones
 
 A scale enters at most one action per step. Pairs are taken in order of the gap between item similarity and definition similarity, skipping pairs whose scales were already used, so each step merges disjoint pairs. Because the scales keep merging, many steps lead toward a few broad scales.
 
+**How often a jingle is contrasted: `jingle_patience`.** A pair of scales is contrasted at most `jingle_patience` times. The first rewrite usually resolves the jingle; when it does not, rewriting the same pair again tends to return the same definitions, and the pipeline would loop. With `jingle_patience = 1` (default) a pair gets one rewrite; if it is still a jingle afterwards it is reported as **unresolved** (`relabel$unresolved`): its definitions stay alike, even after being rewritten to differ, although its items differ. Use `2` for a second try, `Inf` for no limit, and `0` to turn contrasts off and treat only jangles (merge-only). Merge-only keeps the authors' definitions untouched except where scales merge, and uses far fewer LLM calls, but jingles are never addressed: it answers the narrower question *which scales are redundant?*
+
 
 ``` r
 n_steps <- 12
@@ -863,6 +865,7 @@ relabel <- empirical_relabeling(
   model     = llm_model,
   chat_args = llm_args,
   definition_template = definition_template(),
+  jingle_patience = 1,
   test_col  = "test",
   cache_dir = relabel_cache
 )
@@ -880,7 +883,7 @@ The result is a list of tidy tables. The main ones:
 
 ``` r
 relabel$labels %>% filter(step > 0) %>% select(scale_id, step, source, label, definition)
-#> # A tibble: 191 × 5
+#> # A tibble: 160 × 5
 #>    scale_id  step source label                              definition                    
 #>    <chr>    <int> <chr>  <chr>                              <chr>                         
 #>  1 S1.1         1 merge  Emotional Expressiveness           Individual differences in ope…
@@ -893,9 +896,9 @@ relabel$labels %>% filter(step > 0) %>% select(scale_id, step, source, label, de
 #>  8 S1.8         1 merge  Respect for Tradition and Fairness Individual differences in val…
 #>  9 S1.9         1 merge  Focused Engagement                 Individual differences in the…
 #> 10 S1.10        1 merge  Emotional Stability and Energy     Individual differences in emo…
-#> # ℹ 181 more rows
+#> # ℹ 150 more rows
 relabel$merges
-#> # A tibble: 146 × 3
+#> # A tibble: 156 × 3
 #>     step scale_id parent                      
 #>    <int> <chr>    <chr>                       
 #>  1     1 S1.1     b5_aspects_E_enthusiasm     
@@ -908,7 +911,7 @@ relabel$merges
 #>  8     1 S1.4     facetmap_N_procrastination  
 #>  9     1 S1.5     b5_aspects_C_industriousness
 #> 10     1 S1.5     b5_aspects_N_volatility     
-#> # ℹ 136 more rows
+#> # ℹ 146 more rows
 ```
 
 ## 5. What changes across steps
@@ -923,24 +926,25 @@ relabel$merges
 ``` r
 relabeling_summary(relabel) %>%
   mutate(across(where(is.double), ~ round(.x, 3)))
-#> # A tibble: 13 × 15
-#>     step n_scales merges contrasts mean_own_cos prop_own_best jingle jangle jingle_between
-#>    <int>    <int>  <int>     <int>        <dbl>         <dbl>  <int>  <int>          <int>
-#>  1     0      113      0         0        0.476         0.655    178    129            156
-#>  2     1       87     26        13        0.499         0.839     64     48             56
-#>  3     2       70     17         7        0.495         0.843     38     53             31
-#>  4     3       60     10         8        0.498         0.883     18     34             15
-#>  5     4       55      5         7        0.499         0.873     13     25             11
-#>  6     5       50      5         5        0.498         0.86       9     16              7
-#>  7     6       47      3         3        0.5           0.894      6      6              5
-#>  8     7       45      2         4        0.499         0.911      6     19              4
-#>  9     8       43      2         3        0.501         0.907      5      4              4
-#> 10     9       41      2         3        0.499         0.878      4      7              3
-#> 11    10       40      1         2        0.501         0.9        4      0              3
-#> 12    11       40      0         2        0.501         0.9        4      0              3
-#> 13    12       40      0         2        0.502         0.9        3      0              2
-#> # ℹ 6 more variables: jangle_between <int>, r_scale_label <dbl>, scale_low <dbl>,
-#> #   label_low <dbl>, scale_high <dbl>, label_high <dbl>
+#> # A tibble: 13 × 16
+#>     step n_scales merges contrasts mean_own_cos prop_own_best jingle jingle_unresolved
+#>    <int>    <int>  <int>     <int>        <dbl>         <dbl>  <int>             <int>
+#>  1     0      113      0         0        0.476         0.655    178                 0
+#>  2     1       87     26        13        0.499         0.839     64                 4
+#>  3     2       70     17         7        0.495         0.843     38                 2
+#>  4     3       60     10         8        0.498         0.883     18                 3
+#>  5     4       55      5         6        0.5           0.873     14                 5
+#>  6     5       51      4         3        0.504         0.882      8                 6
+#>  7     6       47      4         2        0.498         0.894      3                 2
+#>  8     7       44      3         1        0.498         0.909      5                 4
+#>  9     8       43      1         1        0.5           0.907      3                 3
+#> 10     9       41      2         0        0.494         0.878      3                 3
+#> 11    10       39      2         0        0.498         0.872      3                 3
+#> 12    11       37      2         0        0.495         0.892      3                 3
+#> 13    12       35      2         0        0.492         0.886      2                 2
+#> # ℹ 8 more variables: jangle <int>, jingle_between <int>, jangle_between <int>,
+#> #   r_scale_label <dbl>, scale_low <dbl>, label_low <dbl>, scale_high <dbl>,
+#> #   label_high <dbl>
 
 plot_relabeling_trajectory(relabel)
 ```
@@ -1017,38 +1021,38 @@ plot_relabeling_iclust(relabel, steps = 3)
 ``` r
 final_scales <- relabeling_scales(relabel)            # last step
 final_scales %>% select(scale_id, label, n_items, n_original, own_cos, definition)
-#> # A tibble: 40 × 6
-#>    scale_id label                           n_items n_original own_cos definition         
-#>    <chr>    <chr>                             <int>      <int>   <dbl> <chr>              
-#>  1 S10.1    Social Insightfulness               108         20   0.355 Individual differe…
-#>  2 S9.2     Personality Traits                  104         12   0.399 Individual differe…
-#>  3 S6.3     Emotional and Social Regulation      66         11   0.402 Individual differe…
-#>  4 S6.1     Positive Life Orientation            47          8   0.480 Individual differe…
-#>  5 S5.3     Adaptive Personal Strength           55          6   0.463 Individual differe…
-#>  6 S3.4     Stable Responsible Leader            20          5   0.540 Individual differe…
-#>  7 S3.7     Open-Mindedness and Persistence      19          4   0.422 Individual differe…
-#>  8 S2.5     Positive Engagement                  12          3   0.476 Individual differe…
-#>  9 S1.5     Self-Control and Stability           20          2   0.439 Individual differe…
-#> 10 S1.23    Orderliness and Empathy              20          2   0.518 Individual differe…
-#> # ℹ 30 more rows
+#> # A tibble: 35 × 6
+#>    scale_id label                             n_items n_original own_cos definition       
+#>    <chr>    <chr>                               <int>      <int>   <dbl> <chr>            
+#>  1 S12.2    Balanced Attention and Expression     135         23   0.372 Individual diffe…
+#>  2 S10.2    Emotional openness and control        120         15   0.425 Individual diffe…
+#>  3 S6.4     Emotional and Social Regulation        66         11   0.402 Individual diffe…
+#>  4 S5.3     Adaptive Personal Strength             55          6   0.463 Individual diffe…
+#>  5 S12.1    Open-Mindedness and Empathy            32          6   0.392 Individual diffe…
+#>  6 S7.2     Positive Personality Traits            24          6   0.425 Individual diffe…
+#>  7 S3.7     Open-Mindedness and Persistence        19          4   0.422 Individual diffe…
+#>  8 S6.3     Creative Optimism                      16          4   0.493 Individual diffe…
+#>  9 S1.5     Self-Control and Stability             20          2   0.439 Individual diffe…
+#> 10 S1.23    Orderliness and Empathy                20          2   0.518 Individual diffe…
+#> # ℹ 25 more rows
 
 # an intermediate step
 relabeling_scales(relabel, step = 5) %>%
   select(scale_id, label, n_items, n_original, original_scales)
-#> # A tibble: 50 × 5
+#> # A tibble: 51 × 5
 #>    scale_id label                                 n_items n_original original_scales      
 #>    <chr>    <chr>                                   <int>      <int> <chr>                
 #>  1 S5.1     Social Boldness                            58         11 Affability (facetmap…
 #>  2 S5.2     Empathy and Altruism                       60         10 Altruism (facetmap);…
-#>  3 S5.4     Trustworthiness                            41          7 Emotion-based Decisi…
-#>  4 S5.3     Adaptive Personal Strength                 55          6 Curiosity to learn (…
-#>  5 S5.5     Social Trust                               51          6 Artistic interest (A…
+#>  3 S5.3     Adaptive Personal Strength                 55          6 Curiosity to learn (…
+#>  4 S5.4     Social Trust                               51          6 Artistic interest (A…
+#>  5 S4.5     Emotional and Spiritual Orientation        35          6 Emotion-based Decisi…
 #>  6 S3.4     Stable Responsible Leader                  20          5 Assertiveness (bfi2)…
 #>  7 S3.9     Unconventional Empathy and Confidence      22          4 Eccentricity (facetm…
 #>  8 S3.7     Open-Mindedness and Persistence            19          4 Critical (facetmap);…
 #>  9 S2.1     Emotional Stability and Sociability        24          3 Anxiety (bfi2); Enth…
 #> 10 S2.5     Energetic Optimism                         12          3 Depression (bfi2); E…
-#> # ℹ 40 more rows
+#> # ℹ 41 more rows
 ```
 
 Which tests contribute to each scale? Merges across tests show where different tests measure the same content.
@@ -1107,15 +1111,15 @@ relabel$actions %>% count(step, action) %>% pivot_wider(names_from = action, val
 #>  1     1       13    26
 #>  2     2        7    17
 #>  3     3        8    10
-#>  4     4        7     5
-#>  5     5        5     5
-#>  6     6        3     3
-#>  7     7        4     2
-#>  8     8        3     2
-#>  9     9        3     2
-#> 10    10        2     1
-#> 11    11        2    NA
-#> 12    12        2    NA
+#>  4     4        6     5
+#>  5     5        3     4
+#>  6     6        2     4
+#>  7     7        1     3
+#>  8     8        1     1
+#>  9     9       NA     2
+#> 10    10       NA     2
+#> 11    11       NA     2
+#> 12    12       NA     2
 
 # one contrast (jingle) relabeling: before and after
 one <- relabel$actions %>% filter(action == "contrast") %>% slice(1)
@@ -1167,6 +1171,55 @@ cat(one$prompt)
 #> - The death penalty should be used as a punishment for serious crimes.
 ```
 
+### Unresolved jingles
+
+Pairs that are still jingles after `jingle_patience` rewrites. `contrasts` is how many times the pair was contrasted (0 for scales never contrasted, e.g. with `jingle_patience = 0`).
+
+
+``` r
+relabel$unresolved %>%
+  select(label_1, label_2, item_sim = scale_cos, definition_sim = label_cos, contrasts) %>%
+  mutate(across(where(is.double), ~ round(.x, 2)))
+#> # A tibble: 2 × 5
+#>   label_1                 label_2          item_sim definition_sim contrasts
+#>   <chr>                   <chr>               <dbl>          <dbl>     <int>
+#> 1 Experiential Absorption Novelty Seeking      0.27           0.68         1
+#> 2 Polite Conduct          Emotional Caring     0.38           0.68         1
+
+# per step: jingles left unresolved
+relabeling_summary(relabel) %>% select(step, jingle, jingle_unresolved)
+#> # A tibble: 13 × 3
+#>     step jingle jingle_unresolved
+#>    <int>  <int>             <int>
+#>  1     0    178                 0
+#>  2     1     64                 4
+#>  3     2     38                 2
+#>  4     3     18                 3
+#>  5     4     14                 5
+#>  6     5      8                 6
+#>  7     6      3                 2
+#>  8     7      5                 4
+#>  9     8      3                 3
+#> 10     9      3                 3
+#> 11    10      3                 3
+#> 12    11      3                 3
+#> 13    12      2                 2
+```
+
+A merge-only run, for comparison (not run here):
+
+
+``` r
+relabel_merge_only <- empirical_relabeling(
+  items = relabel_items, scales = relabel_scales,
+  item_emb = items_emb, def_emb = definitions_emb, embed_fun = embed,
+  n_steps = n_steps, provider = llm_provider, model = llm_model,
+  jingle_patience = 0, definition_template = definition_template(),
+  test_col = "test", cache_dir = relabel_cache
+)
+relabel_merge_only$unresolved   # every jingle left at the end
+```
+
 ## 10. Save results
 
 Not run here: this writes an Excel file and the plots to `out_dir`.
@@ -1187,6 +1240,7 @@ writexl::write_xlsx(
        final_scales   = final_scales,
        items_by_step  = items_by_step,
        actions        = relabel$actions,
+       unresolved     = relabel$unresolved,
        pairs          = relabel$pairs %>% filter(type != "nothing")),
   file.path(out_dir, "b5_empirical_relabeling_harmonized.xlsx")
 )

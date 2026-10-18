@@ -188,15 +188,19 @@ embeddcv_label_prompt <- function(item_sets, current_labels, min_words, max_word
 #' 3. **Jangle** pairs (similar items, different definitions) are merged:
 #'    their items are combined into one new scale, and the LLM writes its
 #'    label and definition from the combined items.
-#' 4. **Jingle** pairs (different items, similar definitions) are relabeled:
-#'    the LLM writes new labels and definitions for both scales, closer to
-#'    their items and more distinct from each other.
+#' 4. **Jingle** pairs (different items, similar definitions) are relabeled
+#'    (contrasted): the LLM writes new labels and definitions for both
+#'    scales, closer to their items and more distinct from each other. A pair
+#'    is contrasted at most `jingle_patience` times; if it is still a jingle
+#'    after that, it is reported as unresolved instead of being sent back to
+#'    the LLM.
 #' 5. The new definitions are embedded and the next step starts.
 #'
 #' A scale enters at most one action per step: pairs are taken in order of
 #' the largest gap between scale and label similarity, skipping pairs whose
 #' scales were already used, and scales merged in a step are not also
-#' contrasted in that step. The loop stops early when no fallacies are left.
+#' contrasted in that step. The loop stops early when there is nothing left
+#' to act on: no jangle pairs and no jingle pairs below their patience.
 #'
 #' @param items Data frame with one row per item: `item_id`, `item_text` and
 #'   `scale_id` (the original scale).
@@ -218,6 +222,15 @@ embeddcv_label_prompt <- function(item_sets, current_labels, min_words, max_word
 #'   definitions, e.g. [definition_template()]. Use the same template as for
 #'   the original definitions when they were harmonized with
 #'   [harmonize_definitions()], so all definitions share one format.
+#' @param jingle_patience Maximum number of times the same pair of scales is
+#'   contrasted. With `1` (default) a pair gets one rewrite; if it is still a
+#'   jingle afterwards it is unresolved (see `unresolved` in the output). The
+#'   first rewrite usually resolves the jingle; repeated rewrites of the same
+#'   pair tend to return the same definitions and loop. Use `2` for a second
+#'   try, `Inf` for no limit, and `0` to turn contrasts off: only jangle
+#'   pairs are treated (merge-only), and the original definitions stay
+#'   untouched except where scales merge. A merged scale is a new scale, so
+#'   its pairs start again at zero.
 #' @param transform How similarities are reported: `"none"` (raw cosines),
 #'   `"rescale"` or `"percentile"` (see [transform_similarity()]). Applied to
 #'   the scale-scale, definition-definition and scale-definition matrices of
@@ -257,7 +270,12 @@ embeddcv_label_prompt <- function(item_sets, current_labels, min_words, max_word
 #'   \item{`scales_by_step`}{`step`, `scale_id`, `label_id`, `n_items`,
 #'     `own_cos` (similarity of the scale with its own definition),
 #'     `own_rank` (rank of its own definition among all definitions).}
-#'   \item{`pairs`}{Classified scale pairs of every step.}
+#'   \item{`pairs`}{Classified scale pairs of every step, with `contrasts`
+#'     (times the pair has been contrasted so far) and `unresolved` (a jingle
+#'     that has reached `jingle_patience`).}
+#'   \item{`unresolved`}{Jingle pairs of the last step that reached
+#'     `jingle_patience`: scales whose definitions stay alike, even after being
+#'     rewritten to differ, although their items differ.}
 #'   \item{`thresholds`}{Cutoffs of every step.}
 #'   \item{`actions`}{One row per LLM call: `step`, `action`, `scale_1`,
 #'     `scale_2`, `new_scale`, the pair similarities, and the `prompt`.}
@@ -282,6 +300,7 @@ empirical_relabeling <- function(
     min_words = 12,
     max_words = 60,
     definition_template = NULL,
+    jingle_patience = 1,
     transform = c("none", "rescale", "percentile"),
     test_col = NULL,
     center_by_test = FALSE,
@@ -300,6 +319,10 @@ empirical_relabeling <- function(
          call. = FALSE)
   }
   transform <- match.arg(transform)
+  if (!is.numeric(jingle_patience) || length(jingle_patience) != 1 || jingle_patience < 0) {
+    stop("`jingle_patience` must be a number >= 0 (0 = no contrasts, Inf = no limit).",
+         call. = FALSE)
+  }
   if ((center_by_test || between_tests_only) &&
       (is.null(test_col) || !test_col %in% names(items) || !test_col %in% names(scales))) {
     stop("`center_by_test` and `between_tests_only` need `test_col`, a column ",
@@ -339,6 +362,13 @@ empirical_relabeling <- function(
   actions <- list()
   current <- dplyr::tibble(scale_id = scales$scale_id, label_id = labels$label_id)
   by_step <- list()
+  # times each pair has been contrasted; key = the two scale ids, sorted
+  pair_key <- function(a, b) paste(pmin(a, b), pmax(a, b), sep = " | ")
+  contrasts_done <- integer()
+  n_contrasts <- function(a, b) {
+    n <- unname(contrasts_done[pair_key(a, b)])
+    ifelse(is.na(n), 0L, n)
+  }
 
   llm <- function(sets, current_labels = NULL) {
     llm_label_items(sets, current_labels = current_labels, provider = provider,
@@ -364,12 +394,19 @@ empirical_relabeling <- function(
       if (between_tests_only) prev <- prev[prev$between, ]
       jangle <- embeddcv_disjoint_pairs(prev[prev$type == "Jangle fallacy", ])
       used <- c(jangle$scale_1, jangle$scale_2)
-      jingle <- prev[prev$type == "Jingle fallacy" &
+      # jingle pairs contrasted `jingle_patience` times already are unresolved:
+      # they are not sent back to the LLM
+      jingle <- prev[prev$type == "Jingle fallacy" & prev$contrasts < jingle_patience &
                        !prev$scale_1 %in% used & !prev$scale_2 %in% used, ]
       jingle <- embeddcv_disjoint_pairs(jingle)
 
       if (nrow(jangle) + nrow(jingle) == 0) {
-        if (verbose) message("Step ", step, ": no jingle or jangle fallacies left. Stopping.")
+        n_left <- sum(prev$type == "Jingle fallacy")
+        if (verbose) {
+          message("Step ", step, ": no fallacies left to act on",
+                  if (n_left > 0) paste0(" (", n_left, " unresolved jingle pairs)"),
+                  ". Stopping.")
+        }
         break
       }
       if (verbose) {
@@ -411,6 +448,11 @@ empirical_relabeling <- function(
           prompt = attr(res, "prompt"))
       }
 
+      for (k in seq_len(nrow(jingle))) {
+        key <- pair_key(jingle$scale_1[k], jingle$scale_2[k])
+        contrasts_done[key] <- n_contrasts(jingle$scale_1[k], jingle$scale_2[k]) + 1L
+      }
+
       new_labels <- dplyr::bind_rows(new_labels)
       new_labels <- dplyr::mutate(new_labels, label_id = paste0(.data$scale_id, "@", step),
                                   step = step, .before = 1)
@@ -440,6 +482,9 @@ empirical_relabeling <- function(
       label_group = if (center_by_test) stats::setNames(labels$group, labels$label_id),
       item_test = if (!is.null(test_col)) stats::setNames(items$test, items$item_id)
     )
+    cl$pairs$contrasts <- n_contrasts(cl$pairs$scale_1, cl$pairs$scale_2)
+    cl$pairs$unresolved <- cl$pairs$type == "Jingle fallacy" &
+      cl$pairs$contrasts >= jingle_patience
     by_step[[step + 1]] <- cl
     if (verbose) {
       message("Step ", step, ": ", nrow(current), " scales, ",
@@ -465,11 +510,15 @@ empirical_relabeling <- function(
       pairs = bind_steps("pairs"),
       thresholds = bind_steps("thresholds"),
       actions = dplyr::bind_rows(actions),
+      unresolved = dplyr::as_tibble(
+        by_step[[length(by_step)]]$pairs[by_step[[length(by_step)]]$pairs$unresolved, ]
+      ),
       item_emb = item_emb,
       label_emb = label_emb,
       settings = list(n_steps = n_steps, probs = probs, provider = provider,
                       model = model, max_items = max_items, test_col = test_col,
                       definition_template = definition_template,
+                      jingle_patience = jingle_patience,
                       transform = transform,
                       center_by_test = center_by_test,
                       between_tests_only = between_tests_only)
@@ -564,8 +613,9 @@ embeddcv_cached_embed <- function(text, embed_fun, cache_dir) {
 #' @param x Output of [empirical_relabeling()].
 #'
 #' @return Tibble with one row per step: number of scales, merges and
-#'   contrasts that produced the step, jingle and jangle counts (and how many
-#'   of them are between tests, when `test_col` was given), cutoffs,
+#'   contrasts that produced the step, jingle and jangle counts (how many
+#'   jingles are unresolved, i.e. reached `jingle_patience`, and how many
+#'   fallacies are between tests, when `test_col` was given), cutoffs,
 #'   the correlation between scale and label similarities across pairs
 #'   (`r_scale_label`), the mean similarity of each scale with its own
 #'   definition (`mean_own_cos`), and the share of scales whose own definition
@@ -580,9 +630,11 @@ relabeling_summary <- function(x) {
   )
   pairs <- x$pairs
   if (is.null(pairs$between)) pairs$between <- NA
+  if (is.null(pairs$unresolved)) pairs$unresolved <- NA
   fallacies <- dplyr::summarise(
     dplyr::group_by(pairs, .data$step),
     jingle = sum(.data$type == "Jingle fallacy"),
+    jingle_unresolved = sum(.data$unresolved),
     jangle = sum(.data$type == "Jangle fallacy"),
     jingle_between = sum(.data$type == "Jingle fallacy" & .data$between),
     jangle_between = sum(.data$type == "Jangle fallacy" & .data$between),

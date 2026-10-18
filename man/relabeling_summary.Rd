@@ -11,8 +11,9 @@ relabeling_summary(x)
 }
 \value{
 Tibble with one row per step: number of scales, merges and
-contrasts that produced the step, jingle and jangle counts (and how many
-of them are between tests, when \code{test_col} was given), cutoffs,
+contrasts that produced the step, jingle and jangle counts (how many
+jingles are unresolved, i.e. reached \code{jingle_patience}, and how many
+fallacies are between tests, when \code{test_col} was given), cutoffs,
 the correlation between scale and label similarities across pairs
 (\code{r_scale_label}), the mean similarity of each scale with its own
 definition (\code{mean_own_cos}), and the share of scales whose own definition
