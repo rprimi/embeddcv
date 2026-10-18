@@ -16,7 +16,8 @@ cosim_xy(
   x_id = NULL,
   y_id = NULL,
   drop_self = is.null(y),
-  make_plot = FALSE
+  make_plot = FALSE,
+  transform = c("none", "rescale", "percentile")
 )
 }
 \arguments{
@@ -45,6 +46,10 @@ generated ids; duplicates are made unique.}
 
 \item{make_plot}{Logical. If \code{TRUE}, \code{plot} contains a distribution
 plot of the finite cosine coefficients. Default \code{FALSE}.}
+
+\item{transform}{How to report the cosines: \code{"none"} (raw, default),
+\code{"rescale"} (linear map to 0-1) or \code{"percentile"} (percentile among all
+similarities of the matrix; within a set, the diagonal is left out). See \code{\link[=transform_similarity]{transform_similarity()}}.}
 }
 \value{
 A list with:

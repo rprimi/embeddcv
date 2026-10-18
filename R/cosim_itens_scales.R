@@ -19,6 +19,9 @@
 #'   Names of the scales; used as the cosine column names.
 #' @param make_plot Logical. If \code{TRUE} (default), \code{plot_dist} contains
 #'   a distribution plot of all cosine coefficients; otherwise it is \code{NULL}.
+#' @param transform How to report the cosines: `"none"` (raw, default),
+#'   `"rescale"` (linear map to 0-1) or `"percentile"` (percentile among all
+#'   item x scale similarities). See [transform_similarity()].
 #'
 #' @return A list with:
 #'   \describe{
@@ -63,13 +66,16 @@ cosim_itens_scales <- function(
     item_text,
     factor_itens,
     factor_scale,
-    make_plot = TRUE) {
+    make_plot = TRUE,
+    transform = c("none", "rescale", "percentile")) {
 
+  transform <- match.arg(transform)
   m1 <- as.matrix(item_emb)
   m2 <- as.matrix(scale_emb)
 
-  cosim_mat <- as.data.frame(text2vec::sim2(
-    x = m1, y = m2, method = "cosine", norm = "l2"
+  cosim_mat <- as.data.frame(transform_similarity(
+    as.matrix(text2vec::sim2(x = m1, y = m2, method = "cosine", norm = "l2")),
+    transform
   ))
   colnames(cosim_mat) <- factor_scale
 
@@ -127,6 +133,9 @@ cosim_itens_scales <- function(
 #'   \code{TRUE} when \code{y} is \code{NULL}.
 #' @param make_plot Logical. If \code{TRUE}, \code{plot} contains a distribution
 #'   plot of the finite cosine coefficients. Default \code{FALSE}.
+#' @param transform How to report the cosines: `"none"` (raw, default),
+#'   `"rescale"` (linear map to 0-1) or `"percentile"` (percentile among all
+#'   similarities of the matrix; within a set, the diagonal is left out). See [transform_similarity()].
 #'
 #' @return A list with:
 #'   \describe{
@@ -168,7 +177,10 @@ cosim_xy <- function(
     x_id      = NULL,
     y_id      = NULL,
     drop_self = is.null(y),
-    make_plot = FALSE) {
+    make_plot = FALSE,
+    transform = c("none", "rescale", "percentile")) {
+
+  transform <- match.arg(transform)
 
   xm <- embeddcv_as_embedding_matrix(x, "x")
   same_set <- is.null(y)
@@ -196,6 +208,7 @@ cosim_xy <- function(
 
   mat <- as.matrix(text2vec::sim2(x = xm, y = ym, method = "cosine", norm = "l2"))
   dimnames(mat) <- list(x_id, y_id)
+  mat <- transform_similarity(mat, transform)
 
   if (isTRUE(drop_self) && nrow(mat) == ncol(mat) && identical(x_id, y_id)) {
     diag(mat) <- NA_real_
@@ -239,6 +252,8 @@ cosim_xy <- function(
 #' @param drop_self Logical. If \code{TRUE}, diagonal self-similarities in
 #'   within-set comparisons are set to \code{NA}.
 #' @param make_plot Logical passed to \code{cosim_xy}.
+#' @param transform Passed to \code{cosim_xy}: \code{"none"}, \code{"rescale"}
+#'   or \code{"percentile"}. Each block is transformed on its own.
 #'
 #' @return A named list of \code{cosim_xy()} outputs (each with \code{matrix},
 #'   \code{long}, \code{plot}), named \code{"<x_type>_<y_type>"}.
@@ -256,7 +271,10 @@ cosim_all_pairs <- function(
     groups       = NULL,
     include_same = TRUE,
     drop_self    = TRUE,
-    make_plot    = FALSE) {
+    make_plot    = FALSE,
+    transform    = c("none", "rescale", "percentile")) {
+
+  transform <- match.arg(transform)
 
   if (is.null(names(embeddings)) || any(names(embeddings) == "")) {
     stop("`embeddings` must be a named list.", call. = FALSE)
@@ -288,7 +306,8 @@ cosim_all_pairs <- function(
       x_type   = x_name,
       y_type   = y_name,
       drop_self = isTRUE(drop_self) && same,
-      make_plot = make_plot
+      make_plot = make_plot,
+      transform = transform
     )
   }
 

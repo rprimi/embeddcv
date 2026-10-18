@@ -8,26 +8,34 @@ jingle_jangle_thresholds(
   scale_cos,
   label_cos,
   min_constructs = 5,
-  max_constructs = 100
+  max_constructs = 100,
+  probs = NULL,
+  upper_only = TRUE
 )
 }
 \arguments{
 \item{scale_cos}{Numeric scale-scale similarity matrix or numeric vector of
 scale-scale similarities. A matrix is typically produced by
-\code{cosine_matrix()} and optionally \code{rescale_similarity()}. Matrix diagonal
-values are included unless they have already been removed or set to \code{NA};
-pass the same object used by the analysis pipeline for exact reproduction.}
+\code{cosine_matrix()} and optionally \code{rescale_similarity()}.}
 
 \item{label_cos}{Numeric label-label or definition-definition similarity
 matrix, or numeric vector of label similarities. This is typically produced
 by \code{cosine_matrix()} on label/definition embeddings.}
 
-\item{min_constructs}{Numeric scalar denominator for the low cutoff.
-Wulff & Mata (2025)
-used \code{5}, yielding \code{1 - 1/5 = .80}.}
+\item{min_constructs}{Numeric scalar denominator for the low cutoff, used
+when \code{probs = NULL}. Wulff & Mata (2025) used \code{5}, yielding
+\code{1 - 1/5 = .80}.}
 
-\item{max_constructs}{Numeric scalar denominator for the high cutoff.
-Wulff & Mata (2025) used \code{100}, yielding \code{1 - 1/100 = .99}.}
+\item{max_constructs}{Numeric scalar denominator for the high cutoff, used
+when \code{probs = NULL}. Wulff & Mata (2025) used \code{100}, yielding
+\code{1 - 1/100 = .99}.}
+
+\item{probs}{Optional numeric vector of length 2 with the low and high
+quantiles. Overrides \code{min_constructs} and \code{max_constructs}.}
+
+\item{upper_only}{Logical. When \code{TRUE} (default), square matrices contribute
+only their upper triangle. Set to \code{FALSE} to use every cell, diagonal
+included (the behaviour of embeddcv <= 0.2.0).}
 }
 \value{
 Named numeric vector with \code{scale_low}, \code{label_low}, \code{scale_high},
@@ -37,27 +45,33 @@ and \code{label_high}.
 Computes the semantic similarity cutoffs used to define jingle and jangle
 fallacy regions. The default settings reproduce the threshold rule used by
 Wulff & Mata (2025): a "low" cutoff at the 80th percentile and a "high"
-cutoff at the 99th percentile.
+cutoff at the 99th percentile. Use \code{probs} to set the quantiles directly,
+e.g. \code{probs = c(.25, .75)} for quartile cutoffs.
 }
 \details{
 Let \eqn{S} be the empirical distribution of scale-scale similarities and
-\eqn{L} the empirical distribution of label-label similarities. The function
-returns:
+\eqn{L} the empirical distribution of label-label similarities, and
+\eqn{(p_{low}, p_{high})} the two quantiles. The function returns:
 
-\deqn{s_{low} = Q_S(1 - 1 / \textrm{min\_constructs})}
-\deqn{l_{low} = Q_L(1 - 1 / \textrm{min\_constructs})}
-\deqn{s_{high} = Q_S(1 - 1 / \textrm{max\_constructs})}
-\deqn{l_{high} = Q_L(1 - 1 / \textrm{max\_constructs})}
+\deqn{s_{low} = Q_S(p_{low}), \quad l_{low} = Q_L(p_{low})}
+\deqn{s_{high} = Q_S(p_{high}), \quad l_{high} = Q_L(p_{high})}
 
-With the defaults \code{min_constructs = 5} and \code{max_constructs = 100}, these are
-\code{q80} and \code{q99}. The naming follows the fallacy logic: \code{scale_low} and
-\code{label_low} are lower thresholds relative to the stricter high thresholds,
-not lower-quartile thresholds.
+When \code{probs = NULL}, \eqn{p_{low} = 1 - 1/\textrm{min\_constructs}} and
+\eqn{p_{high} = 1 - 1/\textrm{max\_constructs}}; the defaults
+\code{min_constructs = 5} and \code{max_constructs = 100} give \code{q80} and \code{q99}. The
+naming follows the fallacy logic: \code{scale_low} and \code{label_low} are lower
+thresholds relative to the stricter high thresholds.
+
+Square matrices are symmetric similarity matrices, so by default only their
+upper triangle is used: each pair counts once and the diagonal of 1s is
+left out. The quantiles then match those of the pair table built by
+\code{\link[=jingle_jangle_pairs]{jingle_jangle_pairs()}}.
 }
 \examples{
 scale_cos <- c(.10, .30, .60, .75, .90, .95)
 label_cos <- c(.05, .20, .55, .70, .88, .93)
 jingle_jangle_thresholds(scale_cos, label_cos)
+jingle_jangle_thresholds(scale_cos, label_cos, probs = c(.25, .75))
 }
 \references{
 Wulff, D. U., & Mata, R. (2025). Semantic embeddings reveal and address

@@ -4,13 +4,17 @@
 \alias{cosine_matrix}
 \title{Compute a cosine similarity matrix}
 \usage{
-cosine_matrix(x)
+cosine_matrix(x, transform = c("none", "rescale", "percentile"))
 }
 \arguments{
 \item{x}{Numeric matrix or data frame of embeddings. Rows are observations
 (for example items, scales, or definitions) and columns are embedding
 dimensions. All columns must be numeric; row names, when present, are
 copied to the row and column names of the returned similarity matrix.}
+
+\item{transform}{How to report the cosines: \code{"none"} (raw, default),
+\code{"rescale"} (linear map to 0-1) or \code{"percentile"} (percentile among all
+similarities). See \code{\link[=transform_similarity]{transform_similarity()}}.}
 }
 \value{
 Symmetric numeric cosine similarity matrix with the same row names as

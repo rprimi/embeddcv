@@ -19,3 +19,4 @@ vignettes/*.R
 /Meta/
 !vignettes/precompile.R
 vignettes/emb_cache/
+rev_bib

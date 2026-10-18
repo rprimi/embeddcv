@@ -46,6 +46,7 @@ Imports:
     viridisLite
 Suggests:
     EGAnet,
+    ellmer,
     knitr,
     mclust,
     rmarkdown,

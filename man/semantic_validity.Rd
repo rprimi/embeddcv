@@ -9,7 +9,8 @@ semantic_validity(
   scale_id,
   construct_by_scale = NULL,
   min_scales = 3,
-  self_cutoff = 0.999999
+  self_cutoff = 0.999999,
+  transform = c("none", "rescale", "percentile")
 )
 }
 \arguments{
@@ -30,6 +31,14 @@ Default 3.}
 
 \item{self_cutoff}{Numeric. Item self-similarities at or above this value are
 excluded when aggregating within-scale similarity. Default \code{.999999}.}
+
+\item{transform}{How to report the item cosines before the indices are
+computed: \code{"none"} (default), \code{"rescale"} or
+\code{"percentile"}; see \code{\link{transform_similarity}}. Ignored when
+\code{item_emb} is already a cosine matrix (transform it yourself).
+\code{alpha_semantic} assumes cosines: with \code{"percentile"} it is
+inflated (mean percentiles sit near .5) and should not be read as a
+reliability; \code{fidelity} is a z-score and works on any scale.}
 }
 \value{
 A data frame, one row per scale: \code{scale}, \code{n_items},

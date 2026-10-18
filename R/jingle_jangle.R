@@ -3,36 +3,45 @@
 #' Computes the semantic similarity cutoffs used to define jingle and jangle
 #' fallacy regions. The default settings reproduce the threshold rule used by
 #' Wulff & Mata (2025): a "low" cutoff at the 80th percentile and a "high"
-#' cutoff at the 99th percentile.
+#' cutoff at the 99th percentile. Use `probs` to set the quantiles directly,
+#' e.g. `probs = c(.25, .75)` for quartile cutoffs.
 #'
 #' @details
 #' Let \eqn{S} be the empirical distribution of scale-scale similarities and
-#' \eqn{L} the empirical distribution of label-label similarities. The function
-#' returns:
+#' \eqn{L} the empirical distribution of label-label similarities, and
+#' \eqn{(p_{low}, p_{high})} the two quantiles. The function returns:
 #'
-#' \deqn{s_{low} = Q_S(1 - 1 / \textrm{min\_constructs})}
-#' \deqn{l_{low} = Q_L(1 - 1 / \textrm{min\_constructs})}
-#' \deqn{s_{high} = Q_S(1 - 1 / \textrm{max\_constructs})}
-#' \deqn{l_{high} = Q_L(1 - 1 / \textrm{max\_constructs})}
+#' \deqn{s_{low} = Q_S(p_{low}), \quad l_{low} = Q_L(p_{low})}
+#' \deqn{s_{high} = Q_S(p_{high}), \quad l_{high} = Q_L(p_{high})}
 #'
-#' With the defaults `min_constructs = 5` and `max_constructs = 100`, these are
-#' `q80` and `q99`. The naming follows the fallacy logic: `scale_low` and
-#' `label_low` are lower thresholds relative to the stricter high thresholds,
-#' not lower-quartile thresholds.
+#' When `probs = NULL`, \eqn{p_{low} = 1 - 1/\textrm{min\_constructs}} and
+#' \eqn{p_{high} = 1 - 1/\textrm{max\_constructs}}; the defaults
+#' `min_constructs = 5` and `max_constructs = 100` give `q80` and `q99`. The
+#' naming follows the fallacy logic: `scale_low` and `label_low` are lower
+#' thresholds relative to the stricter high thresholds.
+#'
+#' Square matrices are symmetric similarity matrices, so by default only their
+#' upper triangle is used: each pair counts once and the diagonal of 1s is
+#' left out. The quantiles then match those of the pair table built by
+#' [jingle_jangle_pairs()].
 #'
 #' @param scale_cos Numeric scale-scale similarity matrix or numeric vector of
 #'   scale-scale similarities. A matrix is typically produced by
-#'   `cosine_matrix()` and optionally `rescale_similarity()`. Matrix diagonal
-#'   values are included unless they have already been removed or set to `NA`;
-#'   pass the same object used by the analysis pipeline for exact reproduction.
+#'   `cosine_matrix()` and optionally `rescale_similarity()`.
 #' @param label_cos Numeric label-label or definition-definition similarity
 #'   matrix, or numeric vector of label similarities. This is typically produced
 #'   by `cosine_matrix()` on label/definition embeddings.
-#' @param min_constructs Numeric scalar denominator for the low cutoff.
-#'   Wulff & Mata (2025)
-#'   used `5`, yielding `1 - 1/5 = .80`.
-#' @param max_constructs Numeric scalar denominator for the high cutoff.
-#'   Wulff & Mata (2025) used `100`, yielding `1 - 1/100 = .99`.
+#' @param min_constructs Numeric scalar denominator for the low cutoff, used
+#'   when `probs = NULL`. Wulff & Mata (2025) used `5`, yielding
+#'   `1 - 1/5 = .80`.
+#' @param max_constructs Numeric scalar denominator for the high cutoff, used
+#'   when `probs = NULL`. Wulff & Mata (2025) used `100`, yielding
+#'   `1 - 1/100 = .99`.
+#' @param probs Optional numeric vector of length 2 with the low and high
+#'   quantiles. Overrides `min_constructs` and `max_constructs`.
+#' @param upper_only Logical. When `TRUE` (default), square matrices contribute
+#'   only their upper triangle. Set to `FALSE` to use every cell, diagonal
+#'   included (the behaviour of embeddcv <= 0.2.0).
 #'
 #' @return Named numeric vector with `scale_low`, `label_low`, `scale_high`,
 #'   and `label_high`.
@@ -47,18 +56,31 @@
 #' scale_cos <- c(.10, .30, .60, .75, .90, .95)
 #' label_cos <- c(.05, .20, .55, .70, .88, .93)
 #' jingle_jangle_thresholds(scale_cos, label_cos)
+#' jingle_jangle_thresholds(scale_cos, label_cos, probs = c(.25, .75))
 #' @export
 jingle_jangle_thresholds <- function(
     scale_cos,
     label_cos,
     min_constructs = 5,
-    max_constructs = 100) {
+    max_constructs = 100,
+    probs = NULL,
+    upper_only = TRUE) {
+
+  if (is.null(probs)) probs <- c(1 - 1 / min_constructs, 1 - 1 / max_constructs)
+  if (length(probs) != 2) {
+    stop("`probs` must have length 2 (low and high quantile).", call. = FALSE)
+  }
+  values <- function(x) {
+    if (is.data.frame(x)) x <- as.matrix(x)
+    if (upper_only && is.matrix(x) && nrow(x) == ncol(x)) x[upper.tri(x)] else c(x)
+  }
+  q <- function(x, p) unname(stats::quantile(values(x), p, na.rm = TRUE))
 
   c(
-    scale_low = unname(stats::quantile(c(scale_cos), 1 - 1 / min_constructs, na.rm = TRUE)),
-    label_low = unname(stats::quantile(c(label_cos), 1 - 1 / min_constructs, na.rm = TRUE)),
-    scale_high = unname(stats::quantile(c(scale_cos), 1 - 1 / max_constructs, na.rm = TRUE)),
-    label_high = unname(stats::quantile(c(label_cos), 1 - 1 / max_constructs, na.rm = TRUE))
+    scale_low = q(scale_cos, probs[1]),
+    label_low = q(label_cos, probs[1]),
+    scale_high = q(scale_cos, probs[2]),
+    label_high = q(label_cos, probs[2])
   )
 }
 
@@ -668,12 +690,7 @@ plot_jingle_jangle_scatter <- function(
       stop("`thresholds` must be supplied when `threshold_rule = \"custom\"`.", call. = FALSE)
     }
   } else if (threshold_rule == "quartile") {
-    thresholds <- c(
-      scale_low = unname(stats::quantile(dat$scale_cos, .25, na.rm = TRUE)),
-      label_low = unname(stats::quantile(dat$label_cos, .25, na.rm = TRUE)),
-      scale_high = unname(stats::quantile(dat$scale_cos, .75, na.rm = TRUE)),
-      label_high = unname(stats::quantile(dat$label_cos, .75, na.rm = TRUE))
-    )
+    thresholds <- jingle_jangle_thresholds(dat$scale_cos, dat$label_cos, probs = c(.25, .75))
   } else if (is.null(thresholds)) {
     thresholds <- jingle_jangle_thresholds(
       scale_cos = dat$scale_cos,
@@ -696,8 +713,8 @@ plot_jingle_jangle_scatter <- function(
   )
   plot_fills <- plot_cols
 
-  xlim <- c(0, 1)
-  ylim <- c(0, 1)
+  xlim <- embeddcv_sim_limits(c(dat$scale_cos, thresholds))
+  ylim <- embeddcv_sim_limits(c(dat$label_cos, thresholds))
 
   rects <- data.frame(
     type_plot = factor(c("Jingle fallacy", "Jangle fallacy"),
@@ -834,11 +851,11 @@ plot_jingle_jangle_scatter <- function(
       )
     ) +
     ggplot2::scale_x_continuous(
-      breaks = seq(0, 1, .1),
+      breaks = round(seq(xlim[1], 1, .1), 1),
       expand = ggplot2::expansion(mult = c(.015, .015))
     ) +
     ggplot2::scale_y_continuous(
-      breaks = seq(0, 1, .1),
+      breaks = round(seq(ylim[1], 1, .1), 1),
       expand = ggplot2::expansion(mult = c(.015, .015))
     ) +
     ggplot2::coord_cartesian(xlim = xlim, ylim = ylim) +
@@ -983,8 +1000,19 @@ plot_jingle_jangle <- function(
   pair_table$type <- as.character(pair_table$type)
   pair_table$type[pair_table$type == "Good"] <- "nothing"
 
-  jingle <- pair_table[pair_table$type == "Jingle fallacy", , drop = FALSE]
-  jangle <- pair_table[pair_table$type == "Jangle fallacy", , drop = FALSE]
+  # The plot is drawn in a 0-1 frame. Similarities can be negative (e.g. after
+  # center_embeddings()), so map [lim[1], 1] onto it and label the axes with
+  # the real values. With all values in [0, 1] the map is the identity.
+  lim <- embeddcv_sim_limits(c(pair_table$scale_cos, pair_table$label_cos, thresholds))
+  to_frame <- function(v) (v - lim[1]) / (lim[2] - lim[1])
+  plot_tab <- pair_table
+  plot_tab$scale_cos <- to_frame(plot_tab$scale_cos)
+  plot_tab$label_cos <- to_frame(plot_tab$label_cos)
+  th <- to_frame(unlist(thresholds))
+  ticks <- seq(lim[1], 1, .1)
+
+  jingle <- plot_tab[plot_tab$type == "Jingle fallacy", , drop = FALSE]
+  jangle <- plot_tab[plot_tab$type == "Jangle fallacy", , drop = FALSE]
   n_jingle <- nrow(jingle)
   n_jangle <- nrow(jangle)
   n_fallacy_total <- n_jingle + n_jangle
@@ -1023,8 +1051,8 @@ plot_jingle_jangle <- function(
   graphics::plot.new()
   graphics::plot.window(ylim = c(0, 1), xlim = c(-3, 6))
 
-  graphics::text(.45, seq(0, 1, .1), labels = seq(0, 1, .1), cex = .5, adj = 1)
-  graphics::text(2.55, seq(0, 1, .1), labels = seq(0, 1, .1), cex = .5, adj = 0)
+  graphics::text(.45, to_frame(ticks), labels = round(ticks, 1), cex = .5, adj = 1)
+  graphics::text(2.55, to_frame(ticks), labels = round(ticks, 1), cex = .5, adj = 0)
   graphics::text(0.1, .35, labels = "Label similarity", cex = .8, adj = .5, srt = 90)
   graphics::text(2.9, .35, labels = "Scale similarity", cex = .8, adj = .5, srt = 270)
 
@@ -1034,7 +1062,7 @@ plot_jingle_jangle <- function(
   graphics::mtext("Dissimilar labels, similar scales", at = 3.5, side = 3, cex = .6, line = -1.3, adj = 0)
 
   ypos <- seq(.03, .97, length = n_label_slots)
-  nothing <- pair_table[pair_table$type == "nothing", , drop = FALSE]
+  nothing <- plot_tab[plot_tab$type == "nothing", , drop = FALSE]
   if (nrow(nothing) > 0) {
     set.seed(seed)
     nothing <- nothing[sample(seq_len(nrow(nothing)), min(nrow(nothing), n_background)), , drop = FALSE]
@@ -1052,19 +1080,19 @@ plot_jingle_jangle <- function(
                         seed = seed, col = cols[2], txt_col = cols_txt[2],
                         fallacy_lwd = fallacy_lwd, label_cex = label_cex)
 
-  graphics::lines(c(.1, .1), c(thresholds[["label_high"]], 1), lwd = .5)
-  graphics::lines(c(.2, .1), c(thresholds[["label_high"]], thresholds[["label_high"]]), lwd = .5)
+  graphics::lines(c(.1, .1), c(th[["label_high"]], 1), lwd = .5)
+  graphics::lines(c(.2, .1), c(th[["label_high"]], th[["label_high"]]), lwd = .5)
   graphics::lines(c(.2, .1), c(1, 1), lwd = .5)
-  graphics::lines(c(-.3, .1), c(thresholds[["label_high"]], thresholds[["label_high"]]), lwd = .5)
+  graphics::lines(c(-.3, .1), c(th[["label_high"]], th[["label_high"]]), lwd = .5)
 
   embeddcv_plot_jj_side(jangle, side = "right", ypos = ypos, n_labels = n_labels_plot,
                         seed = seed, col = cols[1], txt_col = cols_txt[1],
                         fallacy_lwd = fallacy_lwd, label_cex = label_cex)
 
-  graphics::lines(c(2.9, 2.9), c(thresholds[["scale_high"]], .97), lwd = .5)
-  graphics::lines(c(2.8, 2.9), c(thresholds[["scale_high"]], thresholds[["scale_high"]]), lwd = .5)
+  graphics::lines(c(2.9, 2.9), c(th[["scale_high"]], .97), lwd = .5)
+  graphics::lines(c(2.8, 2.9), c(th[["scale_high"]], th[["scale_high"]]), lwd = .5)
   graphics::lines(c(2.8, 2.9), c(.97, .97), lwd = .5)
-  graphics::lines(c(2.9, 3.3), c(thresholds[["scale_high"]], thresholds[["scale_high"]]), lwd = .5)
+  graphics::lines(c(2.9, 3.3), c(th[["scale_high"]], th[["scale_high"]]), lwd = .5)
 
   if (isTRUE(show_count_note)) {
     if (is.null(count_note)) {
@@ -1126,6 +1154,12 @@ embeddcv_plot_jj_side <- function(dat, side, ypos, n_labels, seed, col, txt_col,
   }
 
   invisible(NULL)
+}
+
+# Plot range for cosine similarities: from 0 (or the 0.1 step below the
+# smallest value, when values are negative) to 1.
+embeddcv_sim_limits <- function(x) {
+  c(min(0, floor(min(x, na.rm = TRUE) * 10) / 10), 1)
 }
 
 embeddcv_message_jj_counts <- function(dat, prefix = "Jingle-jangle") {

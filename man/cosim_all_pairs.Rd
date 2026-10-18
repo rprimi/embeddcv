@@ -10,7 +10,8 @@ cosim_all_pairs(
   groups = NULL,
   include_same = TRUE,
   drop_self = TRUE,
-  make_plot = FALSE
+  make_plot = FALSE,
+  transform = c("none", "rescale", "percentile")
 )
 }
 \arguments{
@@ -30,6 +31,9 @@ same number of columns. Names become the set types (e.g. \code{"item"},
 within-set comparisons are set to \code{NA}.}
 
 \item{make_plot}{Logical passed to \code{cosim_xy}.}
+
+\item{transform}{Passed to \code{cosim_xy}: \code{"none"}, \code{"rescale"}
+or \code{"percentile"}. Each block is transformed on its own.}
 }
 \value{
 A named list of \code{cosim_xy()} outputs (each with \code{matrix},

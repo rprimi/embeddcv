@@ -10,7 +10,8 @@ cosim_itens_scales(
   item_text,
   factor_itens,
   factor_scale,
-  make_plot = TRUE
+  make_plot = TRUE,
+  transform = c("none", "rescale", "percentile")
 )
 }
 \arguments{
@@ -31,6 +32,10 @@ Names of the scales; used as the cosine column names.}
 
 \item{make_plot}{Logical. If \code{TRUE} (default), \code{plot_dist} contains
 a distribution plot of all cosine coefficients; otherwise it is \code{NULL}.}
+
+\item{transform}{How to report the cosines: \code{"none"} (raw, default),
+\code{"rescale"} (linear map to 0-1) or \code{"percentile"} (percentile among all
+item x scale similarities). See \code{\link[=transform_similarity]{transform_similarity()}}.}
 }
 \value{
 A list with:

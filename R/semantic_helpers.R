@@ -18,6 +18,9 @@
 #'   (for example items, scales, or definitions) and columns are embedding
 #'   dimensions. All columns must be numeric; row names, when present, are
 #'   copied to the row and column names of the returned similarity matrix.
+#' @param transform How to report the cosines: `"none"` (raw, default),
+#'   `"rescale"` (linear map to 0-1) or `"percentile"` (percentile among all
+#'   similarities). See [transform_similarity()].
 #'
 #' @return Symmetric numeric cosine similarity matrix with the same row names as
 #'   `x` on both rows and columns.
@@ -27,7 +30,8 @@
 #' rownames(x) <- c("a", "b", "c")
 #' cosine_matrix(x)
 #' @export
-cosine_matrix <- function(x) {
+cosine_matrix <- function(x, transform = c("none", "rescale", "percentile")) {
+  transform <- match.arg(transform)
   x <- as.matrix(x)
   storage.mode(x) <- "double"
   rn <- rownames(x)
@@ -36,7 +40,7 @@ cosine_matrix <- function(x) {
   x <- x / norms
   out <- tcrossprod(x)
   rownames(out) <- colnames(out) <- rn
-  out
+  transform_similarity(out, transform)
 }
 
 #' Rescale similarities to a target interval
@@ -250,4 +254,117 @@ mix_col <- function(col, with = "white", amount = .5) {
 capitalize_first <- function(x) {
   x <- as.character(x)
   paste0(toupper(substr(x, 1, 1)), substring(x, 2))
+}
+
+#' Center embeddings within groups
+#'
+#' Subtracts the mean embedding of each group from the embeddings of that
+#' group. With `group` = test (questionnaire), this removes what all texts of
+#' one test share (its writing style, item format, recurring phrases such as
+#' "Propensity to ..."), so that cosine similarities reflect content rather
+#' than authorship. This is the "questionnaire embedding" subtraction of the
+#' SQuID method (Pellert et al., 2026), applied per test.
+#'
+#' @details
+#' For embedding \eqn{x_i} in group \eqn{g(i)} the centered embedding is
+#' \deqn{\tilde{x}_i = x_i - \bar{x}_{g(i)},}
+#' with \eqn{\bar{x}_g} the mean embedding of group \eqn{g}. With
+#' `group = NULL` the overall mean is subtracted.
+#'
+#' Center item embeddings by test, not by scale: subtracting the scale mean
+#' from its items makes every scale embedding (the mean of its items) zero.
+#' A group with a single member becomes a zero vector, whose cosine is `NA`.
+#'
+#' @param emb Numeric matrix or data frame of embeddings (rows = texts).
+#' @param group Vector of length `nrow(emb)` with the group of each row, or
+#'   `NULL` for one group.
+#'
+#' @return Numeric matrix with the same dimensions and row names as `emb`.
+#'
+#' @references
+#' Pellert, M., Lechner, C. M., Sen, I., & Strohmaier, M. (2026). Neural
+#' network embeddings recover value dimensions from psychometric survey items
+#' on par with human data. In Findings of the Association for Computational
+#' Linguistics: EACL 2026 (pp. 5738-5752).
+#'
+#' @examples
+#' x <- matrix(c(1, 2, 3, 4, 10, 12), nrow = 3, byrow = TRUE)
+#' center_embeddings(x, group = c("a", "a", "b"))
+#' @export
+center_embeddings <- function(emb, group = NULL) {
+  emb <- as.matrix(emb)
+  if (is.null(group)) group <- rep(1, nrow(emb))
+  if (length(group) != nrow(emb)) {
+    stop("`group` must have length nrow(emb).", call. = FALSE)
+  }
+  group <- as.character(group)
+  for (g in unique(group)) {
+    rows <- group == g
+    emb[rows, ] <- sweep(emb[rows, , drop = FALSE], 2, colMeans(emb[rows, , drop = FALSE]))
+  }
+  emb
+}
+
+#' Transform cosine similarities to a 0-1 scale
+#'
+#' Puts cosine similarities on a 0-1 scale, either by a linear rescale or by
+#' percentiles. Raw cosines have an arbitrary zero point: raw embeddings share
+#' a common direction, so almost all cosines are positive, while centered
+#' embeddings (see [center_embeddings()]) give many negative cosines that mean
+#' "less similar than average", not "opposite". Only the order of the
+#' similarities is meaningful, which is what both transforms keep.
+#'
+#' @details
+#' \describe{
+#'   \item{`"rescale"`}{Linear map of \eqn{[\min, 1]} onto \eqn{[0, 1]}:
+#'     \eqn{(s - \min) / (1 - \min)}. Cosine cannot exceed 1, so the top of
+#'     the scale stays at 1 and only the bottom moves.}
+#'   \item{`"percentile"`}{Each similarity becomes its percentile among all
+#'     similarities, using mid-ranks \eqn{(r - 1/2) / n}, so values stay
+#'     strictly between 0 and 1. This is the information that quantile cutoffs
+#'     (e.g. [jingle_jangle_thresholds()]) use, and it puts different models
+#'     or preprocessings on the same scale.}
+#' }
+#' Both keep the order of the similarities, so quantile-based classifications
+#' and ranks do not change; Pearson correlations do not change under
+#' `"rescale"`.
+#'
+#' For a square symmetric matrix (similarities of a set with itself) only the
+#' upper triangle defines the range or the percentiles, and the diagonal is set
+#' to 1. Otherwise all values are used (e.g. an items x scales matrix).
+#' Missing values stay missing.
+#'
+#' @param x Numeric matrix, data frame or vector of cosine similarities.
+#' @param method `"none"` (return `x` unchanged), `"rescale"` or
+#'   `"percentile"`.
+#'
+#' @return Object of the same shape and names as `x` (a data frame comes back
+#'   as a matrix).
+#'
+#' @examples
+#' s <- matrix(c(1, -.3, .5, -.3, 1, .1, .5, .1, 1), 3)
+#' transform_similarity(s, "rescale")
+#' transform_similarity(s, "percentile")
+#' @export
+transform_similarity <- function(x, method = c("none", "rescale", "percentile")) {
+  method <- match.arg(method)
+  if (method == "none") return(x)
+
+  m <- if (is.data.frame(x)) as.matrix(x) else x
+  sym <- is.matrix(m) && nrow(m) == ncol(m) && isSymmetric(unname(m))
+  vals <- if (sym) m[upper.tri(m)] else c(m)
+  vals <- vals[is.finite(vals)]
+
+  out <- m
+  if (method == "rescale") {
+    lo <- min(vals)
+    out[] <- (m - lo) / (1 - lo)
+  } else {
+    # mid-rank percentile: (values below + values at or below) / 2n
+    sv <- sort(vals)
+    out[] <- (findInterval(m, sv, left.open = TRUE) + findInterval(m, sv)) /
+      (2 * length(sv))
+  }
+  if (sym) diag(out) <- 1
+  out
 }

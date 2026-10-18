@@ -35,6 +35,13 @@
 #'   Default 3.
 #' @param self_cutoff Numeric. Item self-similarities at or above this value are
 #'   excluded when aggregating within-scale similarity. Default \code{.999999}.
+#' @param transform How to report the item cosines before the indices are
+#'   computed: \code{"none"} (default), \code{"rescale"} or
+#'   \code{"percentile"}; see \code{\link{transform_similarity}}. Ignored when
+#'   \code{item_emb} is already a cosine matrix (transform it yourself).
+#'   \code{alpha_semantic} assumes cosines: with \code{"percentile"} it is
+#'   inflated (mean percentiles sit near .5) and should not be read as a
+#'   reliability; \code{fidelity} is a z-score and works on any scale.
 #'
 #' @return A data frame, one row per scale: \code{scale}, \code{n_items},
 #'   \code{mean_item_similarity}, \code{alpha_semantic}, \code{fidelity},
@@ -62,7 +69,10 @@ semantic_validity <- function(
     scale_id,
     construct_by_scale = NULL,
     min_scales = 3,
-    self_cutoff = .999999) {
+    self_cutoff = .999999,
+    transform = c("none", "rescale", "percentile")) {
+
+  transform <- match.arg(transform)
 
   m <- as.matrix(item_emb)
 
@@ -72,7 +82,7 @@ semantic_validity <- function(
                   nrow(m) == ncol(m) && identical(rownames(m), colnames(m))) {
     m
   } else {
-    cosine_matrix(m)
+    cosine_matrix(m, transform = transform)
   }
   item_ids <- rownames(item_cos)
   if (is.null(item_ids)) {
