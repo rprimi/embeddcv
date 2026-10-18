@@ -748,12 +748,17 @@ embeddcv_cluster_colours <- function(lay, palette) {
 #' @param show_text Which label sources to print next to the nodes (`"original"`,
 #'   `"merge"`, `"contrast"`). The others show their label on hover only.
 #' @param wrap Width used to wrap the definitions in the hover box.
+#' @param show_items Show the items of each original scale (step 0) in its
+#'   hover box, below the definition.
+#' @param max_items Maximum number of items listed per scale; longer lists end
+#'   with "... and N more".
 #' @param height Plot height in pixels. Defaults to 16 px per original scale.
 #'
 #' @return A plotly object.
 #' @export
 plot_relabeling_tree <- function(x, steps = max(x$scales_by_step$step),
-                                 show_text = "merge", wrap = 60, height = NULL) {
+                                 show_text = "merge", wrap = 60, show_items = TRUE,
+                                 max_items = 15, height = NULL) {
   lay <- embeddcv_merge_layout(x, steps)
   y <- lay$pos
   end <- stats::setNames(rep(lay$steps, length(y)), names(y))
@@ -776,6 +781,18 @@ plot_relabeling_tree <- function(x, steps = max(x$scales_by_step$step),
     nodes$step, " (", nodes$source, ")<br><br>",
     gsub("\n", "<br>", stringr::str_wrap(nodes$definition, wrap))
   )
+  if (show_items) {
+    # bulleted item list for the original scales (step 0)
+    item_list <- vapply(split(x$items$item_text, x$items$scale_id), function(it) {
+      more <- length(it) - max_items
+      it <- utils::head(it, max_items)
+      it <- gsub("\n", "<br>&nbsp;&nbsp;", stringr::str_wrap(it, wrap - 2))
+      paste0("<br><br><i>Items:</i><br>", paste0("\u2022 ", it, collapse = "<br>"),
+             if (more > 0) paste0("<br>... and ", more, " more"))
+    }, character(1))
+    orig <- nodes$source == "original"
+    nodes$hover[orig] <- paste0(nodes$hover[orig], item_list[nodes$scale_id[orig]])
+  }
 
   cols <- c(original = "#5F6B73", merge = "#B23A7A", contrast = "#2C7FB8")
   symbols <- c(original = "circle", merge = "circle", contrast = "diamond")

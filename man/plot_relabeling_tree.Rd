@@ -9,6 +9,8 @@ plot_relabeling_tree(
   steps = max(x$scales_by_step$step),
   show_text = "merge",
   wrap = 60,
+  show_items = TRUE,
+  max_items = 15,
   height = NULL
 )
 }
@@ -21,6 +23,12 @@ plot_relabeling_tree(
 \code{"merge"}, \code{"contrast"}). The others show their label on hover only.}
 
 \item{wrap}{Width used to wrap the definitions in the hover box.}
+
+\item{show_items}{Show the items of each original scale (step 0) in its
+hover box, below the definition.}
+
+\item{max_items}{Maximum number of items listed per scale; longer lists end
+with "... and N more".}
 
 \item{height}{Plot height in pixels. Defaults to 16 px per original scale.}
 }
