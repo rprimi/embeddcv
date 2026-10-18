@@ -1,0 +1,594 @@
+---
+title: "Empirical relabeling with harmonized definitions"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{Empirical relabeling with harmonized definitions}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+<!-- This vignette is precompiled: edit b5_empirical_relabeling_harmonized.Rmd.orig and run
+     vignettes/precompile.R. It needs an OpenAI API key (embeddings and LLM)
+     or a local Python with sentence-transformers, so it is not run when the
+     package is built. -->
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE, comment = "#>", warning = FALSE, message = FALSE,
+  fig.path = "figures/b5_empirical_relabeling_harmonized-", fig.width = 8, fig.height = 5,
+  dpi = 96
+)
+options(width = 90)
+```
+
+## Idea
+
+Find jingle and jangle fallacies among four Big Five inventories (**BFI-2**, **Big Five Aspects**, **FacetMap** and **SENNA**), following Wulff & Mata (2025), and then fix them step by step with an **empirical relabeling** pipeline: scales whose items overlap are merged, scales whose definitions overlap are relabeled, and an LLM writes the new labels and definitions from the items.
+
+-   **scale side** = empirical scale embeddings (average of the item embeddings of each facet scale);
+-   **label side** = the authors' definitions of each facet scale.
+
+A scale is identified by `test_domain_facet` (e.g. `bfi2_O_aes`). Its short display label is the facet name (e.g. *Aesthetic Sensitivity*), shown as `facet name (test)` in the plots.
+
+*Jangle* here means: two scales whose items look alike but whose definitions differ. *Jingle* means: two scales whose items look different but whose definitions are alike.
+
+**This version harmonizes the definitions first.** Definitions written by different authors differ in style (all FacetMap definitions start with "Propensity to ...", SENNA definitions are long lists, BFI-2 definitions are short phrases), and the embedding model picks this up: definitions of the same test look alike even when their content differs. Before embedding them, an LLM rewrites every definition into one common template, keeping its meaning. The rest of the analysis is the same as in `vignette("b5_empirical_relabeling")` without centering.
+
+Three kinds of embeddings are used: **item** embeddings, **scale** embeddings (the average of the item embeddings of a scale) and **definition** embeddings (the theoretical definition of each scale). Items stay fixed; scales and definitions change at each relabeling step.
+
+## Libraries
+
+```{r}
+#| label: libraries
+# remotes::install_github("rprimi/embeddcv", force = TRUE)
+library(tidyverse)
+library(embeddcv)
+```
+
+## Data
+
+The package includes `b5_items` (one row per item) and `b5_scales` (one row per facet scale, with the authors' definition).
+
+```{r}
+#| label: data
+items  <- b5_items
+scales <- b5_scales
+
+# scale id = test_domain_facet
+items <- items %>%
+  mutate(scale_id = paste(test, domain, facet, sep = "_"),
+         item_id  = paste(test, coditem, sep = "_"))
+stopifnot(!anyDuplicated(items$item_id))
+
+# keep only scales that have items (7 FacetMap scales have no items)
+definitions <- scales %>%
+  filter(n_items > 0) %>%
+  mutate(scale_id = paste(test, domain, facet, sep = "_")) %>%
+  select(scale_id, test, domain, facet, facet_name, definition, n_items)
+
+# every item scale has a definition, and vice versa
+stopifnot(setequal(unique(items$scale_id), definitions$scale_id))
+
+definitions %>% count(test)
+```
+
+## 1. Prepare embeddings
+
+Choose the embedding model. Wulff & Mata (2025) used `mpnet-personality`, a sentence transformer fine-tuned on personality items; `openai` uses `text-embedding-3-small`. Embeddings are cached in `emb_cache/`.
+
+```{r}
+#| label: model
+emb_model <- "openai"   # "mpnet" or "openai"
+
+embed <- function(text) {
+  switch(emb_model,
+    mpnet  = {
+      reticulate::py_require(c("sentence-transformers", "torch"))
+      get_embeddings(text, provider = "huggingface_local",
+                     model = "dwulff/mpnet-personality")
+    },
+    openai = get_embeddings(text, provider = "openai",
+                            model = "text-embedding-3-small"))
+}
+
+cached_embeddings <- function(file, text) {
+  path <- file.path("emb_cache", paste0(file, "_", emb_model, ".rds"))
+  if (file.exists(path)) return(readRDS(path))
+  dir.create("emb_cache", showWarnings = FALSE)
+  emb <- embed(text)
+  saveRDS(emb, path)
+  emb
+}
+
+out_dir <- "figures"
+dir.create(out_dir, showWarnings = FALSE)
+
+```
+
+### Harmonize the definitions
+
+`harmonize_definitions()` sends each definition to an LLM with a template and asks it to rewrite the definition in that format, keeping its meaning; definitions that already fit are returned with minimal changes. The default template, `definition_template()`, follows common recommendations for construct definitions (Podsakoff, MacKenzie & Podsakoff, 2016): name the core attribute by its high pole, describe what high and low scorers typically think, feel and do (concretely, close to how items are phrased), and leave out causes, outcomes and correlates.
+
+```{r}
+#| label: template
+cat(definition_template())
+```
+
+Only the form changes: the LLM sees the definition and the facet name, never the items. Rewriting definitions from the items would turn them into item summaries and make the comparison of items and definitions circular.
+
+Choose the LLM with `provider` (`"openai"`, `"anthropic"`, `"google"`, `"deepseek"`) and `model`. Answers are cached, so the tutorial renders again without new API calls.
+
+```{r}
+#| label: harmonize
+llm_provider <- "openai"          # or "anthropic", "google", "deepseek"
+llm_model    <- "gpt-4.1-mini"    # e.g. "claude-sonnet-4-5", "gemini-2.5-flash"
+llm_args     <- list(params = ellmer::params(temperature = 0))
+
+definitions <- definitions %>%
+  mutate(definition_original = definition,
+         definition = harmonize_definitions(
+           definition_original,
+           template  = definition_template(),
+           labels    = facet_name,
+           provider  = llm_provider,
+           model     = llm_model,
+           chat_args = llm_args,
+           cache_dir = file.path("emb_cache", paste0("harmonize_", llm_model))
+         ))
+
+# a few examples, one per test
+definitions %>%
+  group_by(test) %>% slice(1) %>% ungroup() %>%
+  select(test, facet_name, definition_original, definition)
+
+# length of the definitions before and after
+definitions %>%
+  mutate(words_before = str_count(definition_original, "\\S+"),
+         words_after  = str_count(definition, "\\S+")) %>%
+  group_by(test) %>%
+  summarise(across(c(words_before, words_after), median))
+```
+
+From here on, `definition` is the harmonized definition.
+
+```{r}
+#| label: prepare
+# Items + the scale each item belongs to.
+items_emb <- as.matrix(cached_embeddings("b5_items", items$item_en_text))
+rownames(items_emb) <- items$item_id
+
+count(items, test)
+
+# SCALE side: empirical scale embedding = mean of its item embeddings.
+# Rownames = scale ids (test_domain_facet).
+scale_emb <- get_scale_embeddings(items_emb, items$scale_id)
+
+# LABEL side: definition embeddings (harmonized facet definitions).
+# Rownames = scale ids too, so a scale's label id is its own scale id.
+definitions_emb <- as.matrix(cached_embeddings("b5_definitions_harmonized", definitions$definition))
+rownames(definitions_emb) <- definitions$scale_id
+
+# put scale_emb in the same order as the definitions
+scale_emb <- scale_emb[definitions$scale_id, ]
+stopifnot(identical(rownames(scale_emb), rownames(definitions_emb)))
+
+# Each scale's label is its own definition (identity map over ids).
+definitions_by_scale <- setNames(definitions$scale_id, definitions$scale_id)
+
+# DISPLAY only: short label (facet name) and instrument (test) per scale.
+# Different tests can share a short label (e.g. "Assertiveness"); the
+# instrument suffix keeps them apart in the plots.
+short_by_scale      <- setNames(definitions$facet_name, definitions$scale_id)
+instrument_by_scale <- setNames(definitions$test, definitions$scale_id)
+
+dim(scale_emb)
+dim(definitions_emb)
+```
+
+## 2. Similarity matrices
+
+```{r}
+#| label: similarity
+#| fig-width: 8
+#| fig-height: 5
+# Content similarity between scales (empirical, item-based).
+scale_cos <- cosine_matrix(scale_emb)
+
+# Definition similarity = similarity between the authors' definitions.
+definitions_cos <- cosine_matrix(definitions_emb)
+
+# Scale x definition cross-similarity: the weights used to assign a
+# definition to each cluster in the relabeling step.
+scale_definitions <- cosim_xy(
+  scale_emb, definitions_emb,
+  x_type = "scale", y_type = "definition", make_plot = TRUE
+)
+scale_definitions_cross <- scale_definitions$matrix
+
+plot_similarity_distribution(scale_cos, title = "Scale-scale (items)")
+plot_similarity_distribution(definitions_cos, title = "Definition-definition")
+plot_similarity_distribution(scale_definitions_cross, matrix_triangle = "all",
+                             title = "Scale x definition")
+```
+
+How well does each scale's item content match its own definition? The diagonal of the cross matrix is the similarity of each scale with its own definition; we compare it with the scale's similarity to all other definitions.
+
+```{r}
+#| label: self-match
+self_match <- tibble(
+  scale_id = rownames(scale_definitions_cross),
+  own_def  = diag(scale_definitions_cross)
+) %>%
+  mutate(rank_own = map_int(scale_id, ~ as.integer(rank(-scale_definitions_cross[.x, ])[[.x]])),
+         best_def = colnames(scale_definitions_cross)[apply(scale_definitions_cross, 1, which.max)],
+         test     = instrument_by_scale[scale_id],
+         facet    = short_by_scale[scale_id],
+         best_def_label = paste0(short_by_scale[best_def], " (", instrument_by_scale[best_def], ")"))
+
+# share of scales whose own definition is the best-matching definition, by test
+self_match %>%
+  group_by(test) %>%
+  summarise(n = n(), own_is_best = mean(rank_own == 1), median_rank = median(rank_own),
+            mean_cos_own = mean(own_def))
+
+# scales that best match another scale's definition
+self_match %>%
+  filter(rank_own > 1) %>%
+  select(test, facet, rank_own, best_def_label) %>%
+  arrange(desc(rank_own))
+
+
+```
+
+## 3. Jingle-jangle classification
+
+```{r}
+#| label: jingle-jangle
+#| fig-width: 9
+#| fig-height: 7
+# Pair table: one row per scale pair, with content sim (scale_cos) and
+# definition sim (definitions_cos). `labels` and `instrument` set the text
+# shown in the plots: "facet name (test)".
+jj_base <- jingle_jangle_pairs(
+  scale_cos, definitions_cos,
+  label_by_scale = definitions_by_scale,
+  labels         = short_by_scale[rownames(scale_cos)],
+  instrument     = instrument_by_scale[rownames(scale_cos)]
+)
+
+# Cutoffs at the .25 / .75 quantiles of the similarity distributions (Wulff &
+# Mata used .80 / .99, the default). Only the upper triangle of each matrix is
+# used, so each pair counts once and the diagonal of 1s is left out; the
+# scatter below (threshold_rule = "quartile") draws the same cutoffs.
+thresholds <- jingle_jangle_thresholds(
+  scale_cos, definitions_cos,
+  probs = c(.25, .75)
+)
+
+thresholds
+
+# Tag each pair as jingle / jangle / nothing.
+jj <- classify_jingle_jangle(jj_base, thresholds)
+
+count(jj, type)
+
+plot_jingle_jangle_scatter(
+  jj,
+  output_file = file.path(out_dir, "b5_empirical_relabeling_harmonized-scatter_scale_definitions.png"),
+  show_threshold_note = TRUE, threshold_rule = "quartile"
+)
+
+plot_jingle_jangle(jj, thresholds,
+                   output_file = file.path(out_dir, "b5_empirical_relabeling_harmonized-selected_jingle_jangle.png"), res = 150)
+```
+
+```{r}
+#| label: jj-display
+#| echo: false
+#| out-width: 100%
+knitr::include_graphics(file.path(out_dir, "b5_empirical_relabeling_harmonized-selected_jingle_jangle.png"))
+```
+
+Jingle and jangle pairs between **different tests** are the most informative: they show where the tests use different names for the same content, or the same names for different content. Note that most jingles occur **within** a test: definitions written by the same authors share a style (e.g. all FacetMap definitions start with "Propensity to ..."), which inflates their similarity even when the items differ.
+
+```{r}
+#| label: jj-tables
+jj_pairs <- jj %>%
+  filter(type %in% c("Jingle fallacy", "Jangle fallacy")) %>%
+  mutate(between_tests = instrument_1 != instrument_2)
+
+count(jj_pairs, type, between_tests)
+
+jj_pairs %>%
+  filter(between_tests) %>%
+  transmute(type,
+            scale_1 = paste0(label_1, " (", instrument_1, ")"),
+            scale_2 = paste0(label_2, " (", instrument_2, ")"),
+            item_sim = scale_cos, definition_sim = label_cos) %>%
+  arrange(type, desc(abs(item_sim - definition_sim))) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 2)))
+```
+
+### Did harmonizing remove the style of each test?
+
+Compare the definition similarities of the original and harmonized definitions, within and between tests. If style drove the within-test similarity, harmonizing should bring the within-test mean closer to the between-test mean and cut the within-test jingles.
+
+```{r}
+#| label: harmonize-check
+definitions_emb_orig <- as.matrix(cached_embeddings("b5_definitions", definitions$definition_original))
+rownames(definitions_emb_orig) <- definitions$scale_id
+
+jj_orig <- jingle_jangle_pairs(
+  scale_cos, cosine_matrix(definitions_emb_orig),
+  labels     = short_by_scale[rownames(scale_cos)],
+  instrument = instrument_by_scale[rownames(scale_cos)]
+)
+jj_orig <- classify_jingle_jangle(
+  jj_orig,
+  jingle_jangle_thresholds(scale_cos, cosine_matrix(definitions_emb_orig), probs = c(.25, .75))
+)
+
+both <- bind_rows(original = jj_orig, harmonized = jj, .id = "definitions") %>%
+  mutate(pair = if_else(instrument_1 == instrument_2, "within test", "between tests"))
+
+# mean definition similarity within and between tests
+both %>%
+  group_by(definitions, pair) %>%
+  summarise(definition_sim = mean(label_cos), .groups = "drop") %>%
+  pivot_wider(names_from = pair, values_from = definition_sim)
+
+# fallacies within and between tests
+both %>%
+  filter(type != "nothing") %>%
+  count(definitions, type, pair) %>%
+  pivot_wider(names_from = pair, values_from = n)
+
+# agreement between item similarity and definition similarity
+both %>% group_by(definitions) %>% summarise(r = cor(scale_cos, label_cos))
+```
+
+## 4. Empirical relabeling
+
+The classification above points to two kinds of problems, and each has a natural fix:
+
+-   **Jangle** (similar items, different definitions): the two scales measure the same thing under different names. We **merge** them: their items are combined into one new scale, and an LLM writes a short label (2 to 4 words) and a definition from the combined items.
+-   **Jingle** (different items, similar definitions): the definitions do not tell the scales apart. We **contrast** them: the LLM rewrites both labels and definitions so each one is closer to its own items and more distinct from the other.
+
+The LLM writes the new definitions with the same template as the harmonized ones (`definition_template`), so all definitions keep one format. Then the new definitions are embedded, the scale embeddings are recomputed from the new item groupings, and the jingle-jangle classification is run again with new cutoffs (the 25th and 75th percentiles of that step's similarities). This is one **step**. `empirical_relabeling()` repeats it `n_steps` times, or until no fallacies are left.
+
+A scale enters at most one action per step. Pairs are taken in order of the gap between item similarity and definition similarity, skipping pairs whose scales were already used, so each step merges disjoint pairs. Because the scales keep merging, many steps lead toward a few broad scales.
+
+```{r}
+#| label: relabel-settings
+n_steps <- 12
+```
+
+```{r}
+#| label: relabel-run
+relabel_items  <- items %>% select(item_id, item_text = item_en_text, scale_id, test)
+relabel_scales <- definitions %>%
+  transmute(scale_id, label = paste0(facet_name, " (", test, ")"), definition, test)
+relabel_cache  <- file.path("emb_cache", paste0("relabel_harmonized_", emb_model, "_", llm_model))
+
+relabel <- empirical_relabeling(
+  items     = relabel_items,
+  scales    = relabel_scales,
+  item_emb  = items_emb,
+  def_emb   = definitions_emb,
+  embed_fun = embed,
+  n_steps   = n_steps,
+  probs     = c(.25, .75),
+  provider  = llm_provider,
+  model     = llm_model,
+  chat_args = llm_args,
+  definition_template = definition_template(),
+  test_col  = "test",
+  cache_dir = relabel_cache
+)
+```
+
+The result is a list of tidy tables. The main ones:
+
+-   `relabel$labels`: every label a scale ever had (`scale_id`, `step`, `source` = original / merge / contrast, `label`, `definition`);
+-   `relabel$membership`: which items belong to each scale, for every scale ever created;
+-   `relabel$merges`: the merge tree (`scale_id` = new scale, `parent` = merged scale);
+-   `relabel$scales_by_step`: the active scales of each step with their current label and their fit with it;
+-   `relabel$pairs`, `relabel$thresholds`: the jingle-jangle classification of each step;
+-   `relabel$actions`: one row per LLM call, with its prompt.
+
+```{r}
+#| label: relabel-tables
+relabel$labels %>% filter(step > 0) %>% select(scale_id, step, source, label, definition)
+relabel$merges
+
+```
+
+## 5. What changes across steps
+
+`relabeling_summary()` gives one row per step. Besides the counts of scales, merges, contrasts and fallacies, three indices show how well the labels follow the item content:
+
+-   `r_scale_label`: correlation, across pairs, between item similarity and definition similarity. When the labels describe the content well, scales with similar items have similar definitions.
+-   `mean_own_cos`: mean similarity of each scale with its own definition.
+-   `prop_own_best`: share of scales whose own definition is the best-matching definition among all definitions.
+
+```{r}
+#| label: relabel-summary
+#| fig-width: 10
+#| fig-height: 7
+relabeling_summary(relabel) %>%
+  mutate(across(where(is.double), ~ round(.x, 3)))
+
+plot_relabeling_trajectory(relabel)
+```
+
+The fit of each scale with its own definition, step by step:
+
+```{r}
+#| label: own-fit
+#| fig-width: 10
+#| fig-height: 4
+relabel$scales_by_step %>%
+  ggplot(aes(factor(step), own_cos)) +
+  geom_boxplot(outlier.size = .6, fill = "grey90") +
+  labs(x = "Step", y = "Similarity of scale with its own definition") +
+  theme_minimal()
+```
+
+## 6. Merge tree
+
+The original scales are on the left. Each merge is a node at the step where it happened (pink), labeled with the LLM's short label; diamonds (blue) mark scales relabeled to undo a jingle (their labels show on hover; use `show_text = c("merge", "contrast")` to print them). Hover over a node to read its definition; click the legend to hide a node type; zoom in to read dense regions.
+
+```{r}
+#| label: relabel-tree
+#| eval: false
+# interactive (plotly): run it in your own session
+plot_relabeling_tree(relabel)
+```
+
+All three tree plots take `steps`, the last step to draw, so you can look at earlier, finer solutions.
+
+**Circular tree.** The same tree as a circle, in the style of Wulff & Mata (2025): original scales on the rim, merges further inside the later they happened, each cluster in its own colour and labelled with its current short label.
+
+```{r}
+#| label: relabel-circle
+#| fig-width: 12
+#| fig-height: 12
+plot_relabeling_circle(relabel)
+plot_relabeling_circle(relabel, steps = 2)
+```
+
+**ICLUST-style diagram.** Like `psych::ICLUST.diagram()`: original scales are boxes, merged scales are ellipses at the step where they were formed, and arrows carry the cosine between each part and the merged scale (the analogue of ICLUST's loadings). Each ellipse shows
+
+-   $\alpha$: semantic alpha of the merged scale, $k\bar{c}/(1+(k-1)\bar{c})$ with $\bar{c}$ the mean item-item cosine;
+-   $\beta$: split-half reliability between the two merged parts, ICLUST's beta for that split. A low $\beta$ flags a merge of heterogeneous content;
+-   $N$: number of items.
+
+Scales never merged are left out (`drop_unmerged = TRUE`).
+
+```{r}
+#| label: relabel-iclust
+#| fig-width: 14
+#| fig-height: 22
+plot_relabeling_iclust(relabel)
+```
+
+```{r}
+#| label: relabel-iclust-3
+#| fig-width: 8
+#| fig-height: 14
+plot_relabeling_iclust(relabel, steps = 3)
+```
+
+## 7. Scales at a given step
+
+`relabeling_scales()` lists the active scales of a step with their label, definition and the original scales they contain.
+
+```{r}
+#| label: final-scales
+final_scales <- relabeling_scales(relabel)            # last step
+final_scales %>% select(scale_id, label, n_items, n_original, own_cos, definition)
+
+# an intermediate step
+relabeling_scales(relabel, step = 5) %>%
+  select(scale_id, label, n_items, n_original, original_scales)
+```
+
+Which tests contribute to each scale? Merges across tests show where different tests measure the same content.
+
+```{r}
+#| label: final-composition
+#| fig-width: 10
+#| fig-height: 7
+step_show <- 5
+
+relabel$scales_by_step %>%
+  filter(step == step_show, scale_id %in% relabel$merges$scale_id) %>%   # merged scales only
+  left_join(relabel$membership, by = "scale_id", relationship = "one-to-many") %>%
+  left_join(select(items, item_id, test), by = "item_id") %>%
+  left_join(select(relabel$labels, label_id, label), by = "label_id") %>%
+  ggplot(aes(y = fct_rev(fct_infreq(label)), fill = test)) +
+  geom_bar() +
+  labs(x = "Number of items", y = NULL, fill = "Test",
+       title = paste("Merged scales at step", step_show)) +
+  theme_minimal()
+```
+
+## 8. Jingle-jangle before and after
+
+The same scatter as in section 3, for the original taxonomy and for later steps. Each panel uses its own quartile cutoffs.
+
+```{r}
+#| label: relabel-scatter
+#| fig-width: 11
+#| fig-height: 4
+steps_show <- unique(c(0, 1, 5, max(relabel$pairs$step)))
+
+relabel$pairs %>%
+  filter(step %in% steps_show) %>%
+  ggplot(aes(scale_cos, label_cos, colour = type)) +
+  geom_point(size = .5, alpha = .5) +
+  geom_smooth(aes(group = 1), method = "lm", se = FALSE, colour = "black", linewidth = .6) +
+  facet_wrap(~ step, nrow = 1, labeller = label_both) +
+  scale_colour_manual(values = c(`Jingle fallacy` = "#2C7FB8",
+                                 `Jangle fallacy` = "#B23A7A", nothing = "grey70")) +
+  labs(x = "Item (scale) similarity", y = "Definition similarity", colour = NULL) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+## 9. Inspect the LLM calls
+
+Every LLM call is in `relabel$actions`, with the pair that triggered it and the prompt sent.
+
+```{r}
+#| label: llm-calls
+relabel$actions %>% count(step, action) %>% pivot_wider(names_from = action, values_from = n)
+
+# one contrast (jingle) relabeling: before and after
+one <- relabel$actions %>% filter(action == "contrast") %>% slice(1)
+relabel$labels %>%
+  filter(scale_id %in% c(one$scale_1, one$scale_2), step %in% c(0, one$step)) %>%
+  select(scale_id, step, source, label, definition)
+
+cat(one$prompt)
+```
+
+## 10. Save results
+
+Not run here: this writes an Excel file and the plots to `out_dir`.
+
+```{r}
+#| label: relabel-save
+#| eval: false
+# one row per item, with the scale and label it belongs to at each step
+items_by_step <- relabel$scales_by_step %>%
+  left_join(relabel$membership, by = "scale_id", relationship = "many-to-many") %>%
+  left_join(select(relabel$labels, label_id, label), by = "label_id") %>%
+  select(step, item_id, scale_id, label)
+
+writexl::write_xlsx(
+  list(summary        = relabeling_summary(relabel),
+       labels         = relabel$labels,
+       merges         = relabel$merges,
+       scales_by_step = relabel$scales_by_step,
+       final_scales   = final_scales,
+       items_by_step  = items_by_step,
+       actions        = relabel$actions,
+       pairs          = relabel$pairs %>% filter(type != "nothing")),
+  file.path(out_dir, "b5_empirical_relabeling_harmonized.xlsx")
+)
+
+htmlwidgets::saveWidget(plot_relabeling_tree(relabel),
+                        file.path(out_dir, "b5_empirical_relabeling_harmonized-relabeling_tree.html"))
+ggsave(file.path(out_dir, "b5_empirical_relabeling_harmonized-relabeling_circle.png"), plot_relabeling_circle(relabel),
+       width = 12, height = 12, bg = "white")
+ggsave(file.path(out_dir, "b5_empirical_relabeling_harmonized-relabeling_iclust.png"), plot_relabeling_iclust(relabel),
+       width = 14, height = 22, bg = "white")
+```
+
+## References
+
+-   Podsakoff, P. M., MacKenzie, S. B., & Podsakoff, N. P. (2016). Recommendations for creating better concept definitions in the organizational, behavioral, and social sciences. *Organizational Research Methods, 19*(2), 159–203. https://doi.org/10.1177/1094428115624965
+-   Wulff, D. U., & Mata, R. (2025). Semantic embeddings reveal and address taxonomic incommensurability in psychological measurement. *Nature Human Behaviour, 9*(5), 944–954. https://doi.org/10.1038/s41562-024-02089-y

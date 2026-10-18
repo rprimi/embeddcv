@@ -8,9 +8,16 @@
 # Run from the package root, after installing the current version:
 #   devtools::install(); source("vignettes/precompile.R")
 
-old_wd <- setwd("vignettes")
-on.exit(setwd(old_wd), add = TRUE)
+# local() so that on.exit() runs at the end of the script, not after its own line
+local({
+  old_wd <- setwd("vignettes")
+  on.exit(setwd(old_wd), add = TRUE)
 
-for (v in c("bfi2_facetmap", "b5_jingle_jangle")) {
-  knitr::knit(paste0(v, ".Rmd.orig"), paste0(v, ".Rmd"), envir = new.env())
-}
+  vignettes <- c("bfi2_facetmap", "b5_jingle_jangle",
+                 "b5_empirical_relabeling", "b5_empirical_relabeling_harmonized")
+  if (exists("only_vignettes")) vignettes <- only_vignettes   # e.g. to rebuild just one
+
+  for (v in vignettes) {
+    knitr::knit(paste0(v, ".Rmd.orig"), paste0(v, ".Rmd"), envir = new.env())
+  }
+})
