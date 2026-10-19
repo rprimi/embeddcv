@@ -3,6 +3,7 @@
 export(add_token_strings)
 export(bfi_facetmap_example)
 export(center_embeddings)
+export(center_similarity)
 export(check_hf_models_local)
 export(classify_jingle_jangle)
 export(cosim_all_pairs)

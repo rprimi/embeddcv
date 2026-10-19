@@ -331,6 +331,49 @@ plot_jingle_jangle(jj_ctr, thresholds_ctr ,
 
 
 
+### Alternative: centering the similarities
+
+Centering the embeddings makes most cosines negative: after subtracting a test's mean, that test's vectors sum to zero, so their similarities are forced to average below zero (an ipsative-like constraint). The negative side cannot be read as "opposite". `center_similarity()` removes the test effect from the **similarities** instead and keeps their metric:
+
+1.  record the overall mean and SD of the similarities;
+2.  each similarity belongs to a pair of groups (e.g. BFI-2 x BFI-2, BFI-2 x FacetMap): subtract the mean of that block;
+3.  put the residuals back on the original mean and SD.
+
+`cosine_matrix(x, center_by = group)` and `cosim_xy(..., center_by_x, center_by_y)` do it in one call.
+
+```{r}
+#| label: centering-similarities
+scale_cos_sc       <- cosine_matrix(scale_emb, center_by = instrument_by_scale[rownames(scale_emb)])
+definitions_cos_sc <- cosine_matrix(definitions_emb, center_by = instrument_by_scale[rownames(definitions_emb)])
+
+jj_sc <- jingle_jangle_pairs(
+  scale_cos_sc, definitions_cos_sc,
+  labels     = short_by_scale[rownames(scale_cos_sc)],
+  instrument = instrument_by_scale[rownames(scale_cos_sc)]
+)
+jj_sc <- classify_jingle_jangle(
+  jj_sc, jingle_jangle_thresholds(scale_cos_sc, definitions_cos_sc, probs = c(.25, .75))
+)
+
+# raw vs centered embeddings vs centered similarities
+bind_rows(raw = jj, emb_centered = jj_ctr, sim_centered = jj_sc, .id = "method") %>%
+  mutate(within = instrument_1 == instrument_2) %>%
+  group_by(method) %>%
+  summarise(
+    item_sim_mean  = mean(scale_cos), item_sim_sd = sd(scale_cos),
+    def_within_minus_between = mean(label_cos[within]) - mean(label_cos[!within]),
+    jingle_within  = sum(type == "Jingle fallacy" & within),
+    jingle_between = sum(type == "Jingle fallacy" & !within),
+    jangle_within  = sum(type == "Jangle fallacy" & within),
+    jangle_between = sum(type == "Jangle fallacy" & !within),
+    r = cor(scale_cos, label_cos)
+  ) %>%
+  mutate(across(where(is.double), ~ round(.x, 3))) %>%
+  as.data.frame()
+```
+
+Centering the similarities keeps the mean and SD of the raw cosines and removes the within-test excess exactly (`def_within_minus_between` = 0). Centering the embeddings goes further: it also removes the test-specific *directions* in the embedding space, so item and definition similarities agree more (higher `r`), but it pushes within-test pairs below the between-test ones by an amount set by the number of texts per test.
+
 ### Keeping only between-test pairs
 
 Pairs between **different tests** are the informative ones for comparing tests, so we can select them before relabeling. For a single classification this is just a filter:
@@ -358,9 +401,10 @@ A scale enters at most one action per step. Pairs are taken in order of the gap 
 
 **How often a jingle is contrasted: `jingle_patience`.** A pair of scales is contrasted at most `jingle_patience` times. The first rewrite usually resolves the jingle; when it does not, rewriting the same pair again tends to return the same definitions, and the pipeline would loop. With `jingle_patience = 1` (default) a pair gets one rewrite; if it is still a jingle afterwards it is reported as **unresolved** (`relabel$unresolved`): its definitions stay alike, even after being rewritten to differ, although its items differ. Use `2` for a second try, `Inf` for no limit, and `0` to turn contrasts off and treat only jangles (merge-only). Merge-only keeps the authors' definitions untouched except where scales merge, and uses far fewer LLM calls, but jingles are never addressed: it answers the narrower question *which scales are redundant?*
 
-With `test_col = "test"`, two options apply the previous section inside the pipeline:
+With `test_col = "test"`, three options apply the previous section inside the pipeline:
 
 -   `center_by_test = TRUE`: items and original definitions are centered by test. The LLM's definitions share a style too, so they form their own group: each one is centered by the mean of all LLM definitions written so far.
+-   `center_similarities = TRUE`: the alternative above, inside the pipeline. In every step the scale, definition and scale x definition similarities go through `center_similarity()`; scales are grouped by test (`"mixed"` for merged scales combining tests) and definitions by author (their test, or `"llm"`).
 -   `between_tests_only = TRUE`: only between-test pairs trigger merges and contrasts.
 
 Choose the LLM with `provider` (`"openai"`, `"anthropic"`, `"google"`, `"deepseek"`) and `model`. LLM answers and the embeddings of the new definitions are cached in `cache_dir`, so the tutorial renders again without new API calls.

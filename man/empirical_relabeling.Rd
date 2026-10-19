@@ -23,6 +23,7 @@ empirical_relabeling(
   transform = c("none", "rescale", "percentile"),
   test_col = NULL,
   center_by_test = FALSE,
+  center_similarities = FALSE,
   between_tests_only = FALSE,
   cache_dir = "relabel_cache",
   verbose = TRUE
@@ -91,6 +92,15 @@ definition embeddings by "author" before computing similarities (see
 original definitions of its test, each LLM definition minus the mean of
 all LLM definitions written so far. This removes the style shared by the
 texts of one source.}
+
+\item{center_similarities}{If \code{TRUE}, the test effect is removed from the
+similarities instead of (or in addition to) the embeddings: in every
+step the scale-scale, definition-definition and scale-definition matrices
+go through \code{\link[=center_similarity]{center_similarity()}}, which subtracts the mean of each block
+of groups (e.g. FacetMap x FacetMap) and restores the original mean and
+SD. Scales are grouped by test (\code{"mixed"} for merged scales that combine
+tests); definitions by author (their test, or \code{"llm"}). Unlike
+\code{center_by_test}, the similarities keep their metric.}
 
 \item{between_tests_only}{If \code{TRUE}, only pairs that are not within one test
 trigger merges or contrasts. A pair is within a test when both scales

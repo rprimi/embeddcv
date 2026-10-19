@@ -4,7 +4,11 @@
 \alias{cosine_matrix}
 \title{Compute a cosine similarity matrix}
 \usage{
-cosine_matrix(x, transform = c("none", "rescale", "percentile"))
+cosine_matrix(
+  x,
+  transform = c("none", "rescale", "percentile"),
+  center_by = NULL
+)
 }
 \arguments{
 \item{x}{Numeric matrix or data frame of embeddings. Rows are observations
@@ -15,6 +19,10 @@ copied to the row and column names of the returned similarity matrix.}
 \item{transform}{How to report the cosines: \code{"none"} (raw, default),
 \code{"rescale"} (linear map to 0-1) or \code{"percentile"} (percentile among all
 similarities). See \code{\link[=transform_similarity]{transform_similarity()}}.}
+
+\item{center_by}{Optional group of each row (e.g. its test). When given,
+the group effect is removed from the similarities with
+\code{\link[=center_similarity]{center_similarity()}} before \code{transform} is applied.}
 }
 \value{
 Symmetric numeric cosine similarity matrix with the same row names as

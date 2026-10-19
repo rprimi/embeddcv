@@ -136,6 +136,10 @@ cosim_itens_scales <- function(
 #' @param transform How to report the cosines: `"none"` (raw, default),
 #'   `"rescale"` (linear map to 0-1) or `"percentile"` (percentile among all
 #'   similarities of the matrix; within a set, the diagonal is left out). See [transform_similarity()].
+#' @param center_by_x,center_by_y Optional groups of the rows of `x` and `y`
+#'   (e.g. their tests). When `center_by_x` is given, the group effect is
+#'   removed from the similarities with [center_similarity()] before
+#'   `transform`. For a cross comparison both are needed.
 #'
 #' @return A list with:
 #'   \describe{
@@ -178,7 +182,9 @@ cosim_xy <- function(
     y_id      = NULL,
     drop_self = is.null(y),
     make_plot = FALSE,
-    transform = c("none", "rescale", "percentile")) {
+    transform = c("none", "rescale", "percentile"),
+    center_by_x = NULL,
+    center_by_y = NULL) {
 
   transform <- match.arg(transform)
 
@@ -208,6 +214,13 @@ cosim_xy <- function(
 
   mat <- as.matrix(text2vec::sim2(x = xm, y = ym, method = "cosine", norm = "l2"))
   dimnames(mat) <- list(x_id, y_id)
+  if (!is.null(center_by_x)) {
+    if (!same_set && is.null(center_by_y)) {
+      stop("A cross comparison needs both `center_by_x` and `center_by_y`.", call. = FALSE)
+    }
+    mat <- center_similarity(mat, center_by_x,
+                             if (same_set) NULL else center_by_y)
+  }
   mat <- transform_similarity(mat, transform)
 
   if (isTRUE(drop_self) && nrow(mat) == ncol(mat) && identical(x_id, y_id)) {

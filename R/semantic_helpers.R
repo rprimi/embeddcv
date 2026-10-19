@@ -21,6 +21,9 @@
 #' @param transform How to report the cosines: `"none"` (raw, default),
 #'   `"rescale"` (linear map to 0-1) or `"percentile"` (percentile among all
 #'   similarities). See [transform_similarity()].
+#' @param center_by Optional group of each row (e.g. its test). When given,
+#'   the group effect is removed from the similarities with
+#'   [center_similarity()] before `transform` is applied.
 #'
 #' @return Symmetric numeric cosine similarity matrix with the same row names as
 #'   `x` on both rows and columns.
@@ -30,7 +33,8 @@
 #' rownames(x) <- c("a", "b", "c")
 #' cosine_matrix(x)
 #' @export
-cosine_matrix <- function(x, transform = c("none", "rescale", "percentile")) {
+cosine_matrix <- function(x, transform = c("none", "rescale", "percentile"),
+                          center_by = NULL) {
   transform <- match.arg(transform)
   x <- as.matrix(x)
   storage.mode(x) <- "double"
@@ -40,6 +44,7 @@ cosine_matrix <- function(x, transform = c("none", "rescale", "percentile")) {
   x <- x / norms
   out <- tcrossprod(x)
   rownames(out) <- colnames(out) <- rn
+  if (!is.null(center_by)) out <- center_similarity(out, center_by)
   transform_similarity(out, transform)
 }
 
@@ -318,7 +323,8 @@ center_embeddings <- function(emb, group = NULL) {
 #' \describe{
 #'   \item{`"rescale"`}{Linear map of \eqn{[\min, 1]} onto \eqn{[0, 1]}:
 #'     \eqn{(s - \min) / (1 - \min)}. Cosine cannot exceed 1, so the top of
-#'     the scale stays at 1 and only the bottom moves.}
+#'     the scale stays at 1 and only the bottom moves. (After
+#'     [center_similarity()] values can exceed 1; the maximum is then used.)}
 #'   \item{`"percentile"`}{Each similarity becomes its percentile among all
 #'     similarities, using mid-ranks \eqn{(r - 1/2) / n}, so values stay
 #'     strictly between 0 and 1. This is the information that quantile cutoffs
@@ -358,7 +364,8 @@ transform_similarity <- function(x, method = c("none", "rescale", "percentile"))
   out <- m
   if (method == "rescale") {
     lo <- min(vals)
-    out[] <- (m - lo) / (1 - lo)
+    hi <- max(1, vals)   # above 1 only after center_similarity()
+    out[] <- (m - lo) / (hi - lo)
   } else {
     # mid-rank percentile: (values below + values at or below) / 2n
     sv <- sort(vals)
@@ -366,5 +373,90 @@ transform_similarity <- function(x, method = c("none", "rescale", "percentile"))
       (2 * length(sv))
   }
   if (sym) diag(out) <- 1
+  out
+}
+
+#' Remove group effects from cosine similarities
+#'
+#' Removes the effect of a grouping variable (e.g. the test each item, scale or
+#' definition comes from) from a similarity matrix, keeping the original
+#' metric. Every similarity belongs to a pair of groups (e.g. BFI-2 x BFI-2,
+#' BFI-2 x FacetMap); the mean of that block is subtracted, and the residuals
+#' are put back on the mean and standard deviation of the original
+#' similarities.
+#'
+#' @details
+#' For similarity \eqn{s_{ij}} between rows of group \eqn{g(i)} and columns of
+#' group \eqn{h(j)}:
+#' \deqn{r_{ij} = s_{ij} - \bar{s}_{g(i)h(j)}, \qquad
+#' s^*_{ij} = \bar{s} + (r_{ij} - \bar{r}) \frac{\mathrm{sd}(s)}{\mathrm{sd}(r)},}
+#' where \eqn{\bar{s}_{gh}} is the mean of block \eqn{(g, h)}, and
+#' \eqn{\bar{s}}, \eqn{\mathrm{sd}(s)} are the mean and SD of all similarities.
+#' The result has the same mean and SD as the input, but no block differs from
+#' another on average: a pair of FacetMap scales is no longer more similar just
+#' because both come from FacetMap.
+#'
+#' Unlike [center_embeddings()], which works on the embeddings and makes most
+#' cosines negative (ipsative-like), this works on the similarities and keeps
+#' their metric. Values can end slightly outside \eqn{[-1, 1]}.
+#'
+#' For a square symmetric matrix (`group_y = NULL`) the blocks are unordered
+#' pairs of groups, only the upper triangle is used to compute means and SDs
+#' (each pair once, no diagonal), and the diagonal is left unchanged. Blocks
+#' with fewer than `min_block` similarities are not adjusted.
+#'
+#' @param sim Numeric similarity matrix (or data frame).
+#' @param group Group of each row of `sim` (e.g. its test).
+#' @param group_y Group of each column, for a cross matrix (e.g. items x
+#'   scales, scales x definitions). `NULL` for a square matrix of a set with
+#'   itself.
+#' @param min_block Minimum number of similarities in a block for its mean to
+#'   be removed.
+#'
+#' @return Matrix with the same dimensions and names as `sim`.
+#'
+#' @examples
+#' set.seed(1)
+#' x <- matrix(rnorm(40), 8)
+#' s <- cosine_matrix(x)
+#' center_similarity(s, group = rep(c("a", "b"), each = 4))
+#' @export
+center_similarity <- function(sim, group, group_y = NULL, min_block = 2) {
+  s <- as.matrix(sim)
+  storage.mode(s) <- "double"
+  sym <- is.null(group_y)
+  if (sym) {
+    if (nrow(s) != ncol(s)) {
+      stop("A non-square `sim` needs `group_y` (the group of each column).", call. = FALSE)
+    }
+    group_y <- group
+  }
+  if (length(group) != nrow(s) || length(group_y) != ncol(s)) {
+    stop("`group` must match the rows and `group_y` the columns of `sim`.", call. = FALSE)
+  }
+  group <- as.character(group)
+  group_y <- as.character(group_y)
+
+  # block of each cell; unordered pairs of groups for a square matrix
+  block <- if (sym) {
+    outer(group, group_y, function(a, b) paste(pmin(a, b), pmax(a, b), sep = " x "))
+  } else {
+    outer(group, group_y, paste, sep = " x ")
+  }
+  use <- if (sym) upper.tri(s) else matrix(TRUE, nrow(s), ncol(s))
+  use <- use & is.finite(s)
+
+  m0 <- mean(s[use])
+  sd0 <- stats::sd(s[use])
+  block_mean <- tapply(s[use], block[use], mean)
+  block_n <- tapply(s[use], block[use], length)
+  block_mean[block_n < min_block] <- m0
+
+  bm <- unname(block_mean[as.vector(block)])
+  bm[is.na(bm)] <- m0                 # cells of blocks without data
+  r <- s - matrix(bm, nrow(s), ncol(s))
+  out <- m0 + (r - mean(r[use])) * sd0 / stats::sd(r[use])
+  out <- matrix(out, nrow(s), ncol(s), dimnames = dimnames(s))
+  if (sym) diag(out) <- diag(s)
   out
 }

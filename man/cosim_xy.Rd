@@ -17,7 +17,9 @@ cosim_xy(
   y_id = NULL,
   drop_self = is.null(y),
   make_plot = FALSE,
-  transform = c("none", "rescale", "percentile")
+  transform = c("none", "rescale", "percentile"),
+  center_by_x = NULL,
+  center_by_y = NULL
 )
 }
 \arguments{
@@ -50,6 +52,11 @@ plot of the finite cosine coefficients. Default \code{FALSE}.}
 \item{transform}{How to report the cosines: \code{"none"} (raw, default),
 \code{"rescale"} (linear map to 0-1) or \code{"percentile"} (percentile among all
 similarities of the matrix; within a set, the diagonal is left out). See \code{\link[=transform_similarity]{transform_similarity()}}.}
+
+\item{center_by_x, center_by_y}{Optional groups of the rows of \code{x} and \code{y}
+(e.g. their tests). When \code{center_by_x} is given, the group effect is
+removed from the similarities with \code{\link[=center_similarity]{center_similarity()}} before
+\code{transform}. For a cross comparison both are needed.}
 }
 \value{
 A list with:

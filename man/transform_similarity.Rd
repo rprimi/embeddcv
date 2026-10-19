@@ -28,7 +28,8 @@ similarities is meaningful, which is what both transforms keep.
 \describe{
 \item{\code{"rescale"}}{Linear map of \eqn{[\min, 1]} onto \eqn{[0, 1]}:
 \eqn{(s - \min) / (1 - \min)}. Cosine cannot exceed 1, so the top of
-the scale stays at 1 and only the bottom moves.}
+the scale stays at 1 and only the bottom moves. (After
+\code{\link[=center_similarity]{center_similarity()}} values can exceed 1; the maximum is then used.)}
 \item{\code{"percentile"}}{Each similarity becomes its percentile among all
 similarities, using mid-ranks \eqn{(r - 1/2) / n}, so values stay
 strictly between 0 and 1. This is the information that quantile cutoffs

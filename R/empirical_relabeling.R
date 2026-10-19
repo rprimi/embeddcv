@@ -250,6 +250,14 @@ embeddcv_label_prompt <- function(item_sets, current_labels, min_words, max_word
 #'   original definitions of its test, each LLM definition minus the mean of
 #'   all LLM definitions written so far. This removes the style shared by the
 #'   texts of one source.
+#' @param center_similarities If `TRUE`, the test effect is removed from the
+#'   similarities instead of (or in addition to) the embeddings: in every
+#'   step the scale-scale, definition-definition and scale-definition matrices
+#'   go through [center_similarity()], which subtracts the mean of each block
+#'   of groups (e.g. FacetMap x FacetMap) and restores the original mean and
+#'   SD. Scales are grouped by test (`"mixed"` for merged scales that combine
+#'   tests); definitions by author (their test, or `"llm"`). Unlike
+#'   `center_by_test`, the similarities keep their metric.
 #' @param between_tests_only If `TRUE`, only pairs that are not within one test
 #'   trigger merges or contrasts. A pair is within a test when both scales
 #'   contain items of that single test only; merged scales that mix tests are
@@ -304,6 +312,7 @@ empirical_relabeling <- function(
     transform = c("none", "rescale", "percentile"),
     test_col = NULL,
     center_by_test = FALSE,
+    center_similarities = FALSE,
     between_tests_only = FALSE,
     cache_dir = "relabel_cache",
     verbose = TRUE) {
@@ -323,9 +332,9 @@ empirical_relabeling <- function(
     stop("`jingle_patience` must be a number >= 0 (0 = no contrasts, Inf = no limit).",
          call. = FALSE)
   }
-  if ((center_by_test || between_tests_only) &&
+  if ((center_by_test || center_similarities || between_tests_only) &&
       (is.null(test_col) || !test_col %in% names(items) || !test_col %in% names(scales))) {
-    stop("`center_by_test` and `between_tests_only` need `test_col`, a column ",
+    stop("`center_by_test`, `center_similarities` and `between_tests_only` need `test_col`, a column ",
          "present in both `items` and `scales`.", call. = FALSE)
   }
   dir.create(cache_dir, showWarnings = FALSE, recursive = TRUE)
@@ -479,8 +488,10 @@ empirical_relabeling <- function(
     cl <- embeddcv_classify_step(
       current, membership, item_emb, label_emb, label_of, probs,
       transform = transform,
-      label_group = if (center_by_test) stats::setNames(labels$group, labels$label_id),
-      item_test = if (!is.null(test_col)) stats::setNames(items$test, items$item_id)
+      label_group = if (!is.null(test_col)) stats::setNames(labels$group, labels$label_id),
+      item_test = if (!is.null(test_col)) stats::setNames(items$test, items$item_id),
+      center_definitions = center_by_test,
+      center_similarities = center_similarities
     )
     cl$pairs$contrasts <- n_contrasts(cl$pairs$scale_1, cl$pairs$scale_2)
     cl$pairs$unresolved <- cl$pairs$type == "Jingle fallacy" &
@@ -521,6 +532,7 @@ empirical_relabeling <- function(
                       jingle_patience = jingle_patience,
                       transform = transform,
                       center_by_test = center_by_test,
+                      center_similarities = center_similarities,
                       between_tests_only = between_tests_only)
     ),
     class = c("empirical_relabeling", "list")
@@ -528,16 +540,24 @@ empirical_relabeling <- function(
 }
 
 # Classify the scale pairs of one step and compute how well each scale
-# matches its own definition. `label_group` (label_id -> author group) turns on
-# centering of the definitions by group; `item_test` (item_id -> test) adds the
-# `between` column to the pairs.
+# matches its own definition. `label_group` (label_id -> author group) and
+# `item_test` (item_id -> test) give the groups used to center the definition
+# embeddings (`center_definitions`) or the similarities
+# (`center_similarities`); `item_test` also adds the `between` column.
 embeddcv_classify_step <- function(current, membership, item_emb, label_emb, label_of, probs,
-                                   transform = "none", label_group = NULL, item_test = NULL) {
+                                   transform = "none", label_group = NULL, item_test = NULL,
+                                   center_definitions = FALSE, center_similarities = FALSE) {
   mem <- membership[membership$scale_id %in% current$scale_id, ]
   scale_emb <- get_scale_embeddings(item_emb[mem$item_id, , drop = FALSE], mem$scale_id)
   scale_emb <- scale_emb[current$scale_id, , drop = FALSE]
   def_emb <- label_emb[current$label_id, , drop = FALSE]
-  if (!is.null(label_group)) {
+  if (!is.null(item_test)) {
+    # tests of each scale; "mixed" for merged scales combining tests
+    tests <- tapply(item_test[mem$item_id], mem$scale_id, function(t) sort(unique(t)))
+    one_test <- vapply(tests, function(t) if (length(t) == 1) t else NA_character_, "")
+    scale_group <- ifelse(is.na(one_test), "mixed", one_test)[current$scale_id]
+  }
+  if (center_definitions) {
     # subtract the mean of all definitions written by the same author group
     # (groups of one are left as they are)
     grp <- label_group[rownames(label_emb)]
@@ -550,11 +570,20 @@ embeddcv_classify_step <- function(current, membership, item_emb, label_emb, lab
   rownames(def_emb) <- current$scale_id
 
   n <- nrow(current)
+  scale_cos <- cosine_matrix(scale_emb)
+  def_cos <- cosine_matrix(def_emb)
   cross <- cosine_matrix(rbind(scale_emb, def_emb))[seq_len(n), n + seq_len(n), drop = FALSE]
+  if (center_similarities) {
+    def_group <- label_group[current$label_id]
+    scale_cos <- center_similarity(scale_cos, scale_group)
+    def_cos <- center_similarity(def_cos, def_group)
+    cross <- center_similarity(cross, scale_group, def_group)
+  }
+  scale_cos <- transform_similarity(scale_cos, transform)
+  def_cos <- transform_similarity(def_cos, transform)
   cross <- transform_similarity(cross, transform)
 
-  pairs <- jingle_jangle_pairs(cosine_matrix(scale_emb, transform = transform),
-                               cosine_matrix(def_emb, transform = transform),
+  pairs <- jingle_jangle_pairs(scale_cos, def_cos,
                                labels = unname(label_of[current$label_id]))
   thresholds <- jingle_jangle_thresholds(pairs$scale_cos, pairs$label_cos, probs = probs)
   pairs <- classify_jingle_jangle(pairs, thresholds, verbose = FALSE)
@@ -562,10 +591,7 @@ embeddcv_classify_step <- function(current, membership, item_emb, label_emb, lab
                      "scale_cos", "label_cos", "type")]
 
   if (!is.null(item_test)) {
-    # tests of each scale; a pair is within a test when both scales are pure
-    # and share that test
-    tests <- tapply(item_test[mem$item_id], mem$scale_id, function(t) sort(unique(t)))
-    one_test <- vapply(tests, function(t) if (length(t) == 1) t else NA_character_, "")
+    # a pair is within a test when both scales are pure and share that test
     pairs$test_1 <- vapply(tests[pairs$scale_1], paste, "", collapse = "+")
     pairs$test_2 <- vapply(tests[pairs$scale_2], paste, "", collapse = "+")
     t1 <- one_test[pairs$scale_1]
